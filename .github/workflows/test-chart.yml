@@ -1,11 +1,13 @@
 name: Test Chart
 
 on:
-  push:
   pull_request:
+    paths:
+      - ".github/workflows/test-chart.yml"
+      - "dist/**"
 
 jobs:
-  test-e2e:
+  test-e2e-helm:
     name: Run on Ubuntu
     runs-on: ubuntu-latest
     steps:

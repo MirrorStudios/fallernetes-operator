@@ -17,31 +17,29 @@ limitations under the License.
 package v1alpha1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// ServerSpec defines the desired state of Server.
+// ServerSpec defines the desired state of Server
 type ServerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Server. Edit server_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	Pod v1.PodSpec `json:"pod,omitempty"`
+	// +kubebuilder:validation:Optional
+	TimeOut *metav1.Duration `json:"timeout"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	AllowForceDelete bool `json:"allowForceDelete,omitempty"`
 }
 
-// ServerStatus defines the observed state of Server.
+// ServerStatus defines the observed state of Server
 type ServerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// Server is the Schema for the servers API.
+// Server is the Schema for the servers API
 type Server struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

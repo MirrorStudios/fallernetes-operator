@@ -19,6 +19,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"github.com/MirrorStudios/fallernetes/internal/utils"
 	"os"
 	"path/filepath"
 
@@ -202,16 +203,23 @@ func main() {
 		os.Exit(1)
 	}
 
+	prodChecker := utils.ProdDeletionChecker{}
+
 	if err = (&controller.ServerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Recorder:          mgr.GetEventRecorderFor("server-controller"),
+		DeletionAllowed:   prodChecker,
+		ErrorOnNotAllowed: false,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Server")
 		os.Exit(1)
 	}
 	if err = (&controller.FleetReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		Recorder:        mgr.GetEventRecorderFor("fleet"),
+		DeletionChecker: prodChecker,
+		Scheme:          mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Fleet")
 		os.Exit(1)

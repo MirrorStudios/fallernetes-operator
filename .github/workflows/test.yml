@@ -1,8 +1,11 @@
 name: Tests
 
 on:
-  push:
   pull_request:
+    paths:
+      - ".github/workflows/test-chart.yml"
+      - "internal/**"
+      - "api/**"
 
 jobs:
   test:

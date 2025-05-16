@@ -1,8 +1,11 @@
 name: E2E Tests
 
 on:
-  push:
   pull_request:
+    paths:
+      - ".github/workflows/test-chart.yml"
+      - "internal/**"
+      - "api/**"
 
 jobs:
   test-e2e:

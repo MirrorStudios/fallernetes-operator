@@ -20,28 +20,23 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// GameTypeSpec defines the desired state of GameType.
+// GameTypeSpec defines the desired state of GameType
 type GameTypeSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of GameType. Edit gametype_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	FleetSpec FleetSpec `json:"fleetSpec"`
 }
 
-// GameTypeStatus defines the observed state of GameType.
+// GameTypeStatus defines the observed state of GameType
 type GameTypeStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Conditions       []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	CurrentFleetName string             `json:"fleetName"`
+	// +kubebuilder:default=0
+	CurrentFleetReplicas int32 `json:"fleetReplicas"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// GameType is the Schema for the gametypes API.
+// GameType is the Schema for the gametypes API
 type GameType struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
