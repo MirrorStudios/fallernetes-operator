@@ -32,8 +32,7 @@ import (
 
 const projectimage = "example.com/loputoo:v0.0.1"
 const example_server_image = "nginx:latest" //Just a random image to use as a "fake server"
-const sidecar_image = "ghcr.io/unfamousthomas/sidecar:latest"
-const service_image = "example.com/service:latest"
+const sidecar_image = "unfamousthomas/fallernetes-sidecar:main"
 
 const serverName = "test-server"
 const systemns = "loputoo-system"
@@ -58,20 +57,12 @@ var _ = BeforeSuite(func() {
 	_, _ = utils.Run(cmd)
 
 	By("building the manager(Operator) image")
-	cmd = exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage), fmt.Sprintf("SIDECAR_IMG=%s", sidecar_image), fmt.Sprintf("SERVICE_IMG=%s", service_image))
+	cmd = exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage), fmt.Sprintf("SIDECAR_IMG=%s", sidecar_image))
 	_, err = utils.Run(cmd)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
 	By("loading the the manager(Operator) image on Kind")
 	err = utils.LoadImageToKindClusterWithName(projectimage)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-
-	By("loading sidecar image on Kind")
-	err = utils.LoadImageToKindClusterWithName(sidecar_image)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-
-	By("Loading service image on Kind")
-	err = utils.LoadImageToKindClusterWithName(service_image)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
 	By("installing CRDs")
@@ -99,7 +90,7 @@ var _ = BeforeSuite(func() {
 
 		podOutput, err := utils.Run(cmd)
 		ExpectWithOffset(2, err).NotTo(HaveOccurred())
-		podNames := utils.GetNonEmptyLines(string(podOutput))
+		podNames := utils.GetNonEmptyLines(podOutput)
 		if len(podNames) != 1 {
 			return fmt.Errorf("expect 1 controller pods running, but got %d", len(podNames))
 		}

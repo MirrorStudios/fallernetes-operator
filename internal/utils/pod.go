@@ -18,7 +18,7 @@ func getPodSpec(server *v1alpha1.Server) (*corev1.PodSpec, bool) {
 	sidecarImage := os.Getenv("SIDECAR_IMAGE")
 	defaultImage := false
 	if sidecarImage == "" {
-		sidecarImage = "ghcr.io/unfamousthomas/sidecar:latest"
+		sidecarImage = "unfamousthomas/fallernetes-sidecar:main"
 		fmt.Println("SIDECAR_IMAGE env var not set, defaulting to " + sidecarImage)
 		defaultImage = true
 	}
