@@ -2,9 +2,9 @@ package utils
 
 import (
 	"context"
+	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	networkv1alpha1 "github.com/unfamousthomas/thesis-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
@@ -14,7 +14,7 @@ type FakeFleetDeleteChecker struct {
 	DeletionState map[string]bool
 }
 
-func (f FakeFleetDeleteChecker) isDeleteAllowed(ctx context.Context, server *networkv1alpha1.Server, c *client.Client) (bool, error) {
+func (f FakeFleetDeleteChecker) isDeleteAllowed(ctx context.Context, server *v1alpha1.Server, c *client.Client) (bool, error) {
 	return f.DeletionState[server.Name], nil
 }
 
@@ -25,7 +25,7 @@ var _ = Describe("Fleet Utility Testing", func() {
 			By("Setup objects")
 			baseTime := time.Now()
 			fake := FakeFleetDeleteChecker{DeletionState: make(map[string]bool)}
-			servers := networkv1alpha1.ServerList{Items: []networkv1alpha1.Server{
+			servers := v1alpha1.ServerList{Items: []v1alpha1.Server{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:              "server1",
@@ -56,7 +56,7 @@ var _ = Describe("Fleet Utility Testing", func() {
 			By("Setup objects")
 			baseTime := time.Now()
 			fake := FakeFleetDeleteChecker{DeletionState: make(map[string]bool)}
-			servers := networkv1alpha1.ServerList{Items: []networkv1alpha1.Server{
+			servers := v1alpha1.ServerList{Items: []v1alpha1.Server{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:              "server1",
@@ -89,7 +89,7 @@ var _ = Describe("Fleet Utility Testing", func() {
 			By("Setup objects")
 			baseTime := time.Now()
 			fake := FakeFleetDeleteChecker{DeletionState: make(map[string]bool)}
-			servers := networkv1alpha1.ServerList{Items: []networkv1alpha1.Server{
+			servers := v1alpha1.ServerList{Items: []v1alpha1.Server{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:              "server1",
@@ -120,7 +120,7 @@ var _ = Describe("Fleet Utility Testing", func() {
 			By("Setup objects")
 			baseTime := time.Now()
 			fake := FakeFleetDeleteChecker{DeletionState: make(map[string]bool)}
-			servers := networkv1alpha1.ServerList{Items: []networkv1alpha1.Server{
+			servers := v1alpha1.ServerList{Items: []v1alpha1.Server{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:              "server1",
