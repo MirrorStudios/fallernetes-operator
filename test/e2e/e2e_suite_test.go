@@ -35,7 +35,7 @@ const example_server_image = "nginx:latest" //Just a random image to use as a "f
 const sidecar_image = "unfamousthomas/fallernetes-sidecar:main"
 
 const serverName = "test-server"
-const systemns = "loputoo-system"
+const systemns = "fallernetes-system"
 
 var controllerPodName string
 var serviceDeployFile string
