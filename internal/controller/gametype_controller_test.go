@@ -283,7 +283,7 @@ var _ = Describe("GameType Controller", func() {
 
 			By("Expect one fleet created")
 			var fleetList gameserverv1alpha1.FleetList
-			err = k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"type": resourceName})
+			err = k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"gametype": resourceName})
 			Expect(err).To(BeNil())
 			Expect(fleetList.Items).To(HaveLen(1))
 		})
@@ -301,7 +301,7 @@ var _ = Describe("GameType Controller", func() {
 			Expect(err).To(BeNil())
 
 			var initialFleets gameserverv1alpha1.FleetList
-			err = k8sClient.List(ctx, &initialFleets, kclient.MatchingLabels{"type": resourceName})
+			err = k8sClient.List(ctx, &initialFleets, kclient.MatchingLabels{"gametype": resourceName})
 			Expect(err).To(BeNil())
 			Expect(initialFleets.Items).To(HaveLen(1))
 			oldFleetName := initialFleets.Items[0].Name
@@ -317,7 +317,7 @@ var _ = Describe("GameType Controller", func() {
 			Expect(err).To(BeNil())
 
 			var updatedFleets gameserverv1alpha1.FleetList
-			err = k8sClient.List(ctx, &updatedFleets, kclient.MatchingLabels{"type": resourceName})
+			err = k8sClient.List(ctx, &updatedFleets, kclient.MatchingLabels{"gametype": resourceName})
 			Expect(err).To(BeNil())
 			Expect(updatedFleets.Items).To(HaveLen(2))
 
@@ -347,7 +347,7 @@ var _ = Describe("GameType Controller", func() {
 			Expect(err).To(BeNil())
 
 			var fleetList gameserverv1alpha1.FleetList
-			Expect(k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"type": resourceName})).To(Succeed())
+			Expect(k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"gametype": resourceName})).To(Succeed())
 			Expect(fleetList.Items).To(HaveLen(1))
 			Expect(fleetList.Items[0].Spec.Scaling.Replicas).To(Equal(int32(5)))
 		})
@@ -375,7 +375,7 @@ var _ = Describe("GameType Controller", func() {
 			Expect(err).To(BeNil())
 
 			var fleetList gameserverv1alpha1.FleetList
-			Expect(k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"type": resourceName})).To(Succeed())
+			Expect(k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"gametype": resourceName})).To(Succeed())
 			Expect(len(fleetList.Items)).To(BeNumerically(">", 1))
 
 			By("Trigger cleanup of oldest fleet")
@@ -383,7 +383,7 @@ var _ = Describe("GameType Controller", func() {
 			Expect(err).To(BeNil())
 
 			Eventually(func() int {
-				_ = k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"type": resourceName})
+				_ = k8sClient.List(ctx, &fleetList, kclient.MatchingLabels{"gametype": resourceName})
 				return len(fleetList.Items)
 			}, time.Second*5, time.Millisecond*500).Should(BeNumerically("<=", 2))
 		})

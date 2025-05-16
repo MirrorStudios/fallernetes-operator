@@ -46,10 +46,57 @@ spec:
           spec:
             description: GameTypeAutoscalerSpec defines the desired state of GameTypeAutoscaler.
             properties:
-              foo:
-                description: Foo is an example field of GameTypeAutoscaler. Edit gametypeautoscaler_types.go
-                  to remove/update
+              gameTypeName:
                 type: string
+              policy:
+                properties:
+                  type:
+                    enum:
+                    - webhook
+                    type: string
+                  webhook:
+                    properties:
+                      path:
+                        type: string
+                      service:
+                        properties:
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                          port:
+                            type: integer
+                        required:
+                        - name
+                        - namespace
+                        - port
+                        type: object
+                      url:
+                        type: string
+                    required:
+                    - path
+                    type: object
+                required:
+                - type
+                - webhook
+                type: object
+              sync:
+                description: The following sync structs handle when to sync
+                properties:
+                  interval:
+                    type: string
+                  type:
+                    enum:
+                    - fixedinterval
+                    type: string
+                required:
+                - interval
+                - type
+                type: object
+            required:
+            - gameTypeName
+            - policy
+            - sync
             type: object
           status:
             description: GameTypeAutoscalerStatus defines the observed state of GameTypeAutoscaler.
