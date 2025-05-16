@@ -19,9 +19,10 @@ package main
 import (
 	"crypto/tls"
 	"flag"
-	"github.com/MirrorStudios/fallernetes/internal/utils"
 	"os"
 	"path/filepath"
+
+	"github.com/MirrorStudios/fallernetes/internal/utils"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -40,6 +41,7 @@ import (
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
 	"github.com/MirrorStudios/fallernetes/internal/controller"
+	webhookgameserverv1alpha1 "github.com/MirrorStudios/fallernetes/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -237,6 +239,34 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GameTypeAutoscaler")
 		os.Exit(1)
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupServerWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Server")
+			os.Exit(1)
+		}
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupFleetWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Fleet")
+			os.Exit(1)
+		}
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupGameTypeWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "GameType")
+			os.Exit(1)
+		}
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupGameTypeAutoscalerWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "GameTypeAutoscaler")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
