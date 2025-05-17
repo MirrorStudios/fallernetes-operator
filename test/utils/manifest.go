@@ -8,7 +8,7 @@ import (
 
 func CreateServerManifest(name string, namespace string, image string) string {
 	manifest := fmt.Sprintf(`
-apiVersion: network.unfamousthomas.me/v1alpha1
+apiVersion: gameserver.falloria.com/v1alpha1
 kind: Server
 metadata:
   name: %s
@@ -30,7 +30,7 @@ spec:
 
 func CreateFleetManifest(name string, namespace string, image string, replicas int, prioritize bool, priority v1alpha1.Priority) string {
 	manifest := fmt.Sprintf(`
-apiVersion: network.unfamousthomas.me/v1alpha1
+apiVersion: gameserver.falloria.com/v1alpha1
 kind: Fleet
 metadata:
   name: %s
@@ -57,7 +57,7 @@ spec:
 
 func CreateGameTypeManifest(name string, namespace string, image string, replicas int, prioritize bool, priority v1alpha1.Priority) string {
 	manifest := fmt.Sprintf(`
-apiVersion: network.unfamousthomas.me/v1alpha1
+apiVersion: gameserver.falloria.com/v1alpha1
 kind: GameType
 metadata:
   name: %s

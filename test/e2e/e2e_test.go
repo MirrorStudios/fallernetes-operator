@@ -31,16 +31,13 @@ import (
 
 const projectimage = "example.com/fallernetes-operator:v0.0.1"
 const example_server_image = "nginx:latest" //Just a random image to use as a "fake server"
-const sidecar_image = "unfamousthomas/fallernetes-sidecar:main"
 
 const serverName = "test-server"
 const systemns = "fallernetes-system"
 
 var controllerPodName string
-var serviceDeployFile string
 
 var _ = BeforeSuite(func() {
-	By("Setting up timeout")
 	By("resetting the Kind cluster")
 	cmd := exec.Command("kind", "delete", "cluster", "--name", "kind")
 	_, _ = utils.Run(cmd)
@@ -161,23 +158,19 @@ var _ = BeforeSuite(func() {
 	EventuallyWithOffset(1, verifyControllerUp, time.Minute, time.Second).Should(Succeed())
 })
 
-//var _ = AfterSuite(func() {
-//	By("undeploying the controller-manager")
-//	cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage))
-//	_, err := utils.Run(cmd)
-//	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-//
-//	By("uninstalling the cert-manager bundle")
-//	utils.UninstallCertManager()
-//
-//	By("removing manager systemns")
-//	cmd = exec.Command("kubectl", "delete", "ns", systemns)
-//	_, _ = utils.Run(cmd)
-//
-//	By("Remove temp file")
-//	err = os.Remove(serviceDeployFile)
-//	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-//})
+var _ = AfterSuite(func() {
+	By("undeploying the controller-manager")
+	cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage))
+	_, err := utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+
+	By("uninstalling the cert-manager bundle")
+	utils.UninstallCertManager()
+
+	By("removing manager systemns")
+	cmd = exec.Command("kubectl", "delete", "ns", systemns)
+	_, _ = utils.Run(cmd)
+})
 
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
