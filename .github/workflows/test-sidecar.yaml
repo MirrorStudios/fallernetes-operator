@@ -50,5 +50,9 @@ jobs:
 
       - name: Run tests
         if: needs.changes.outputs.run-tests == 'true'
+        working-directory: sidecar
         run:  |
-          go test $(go list ./operator/... | grep -v /e2e) -coverprofile cover.out
+          go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
+
+
+

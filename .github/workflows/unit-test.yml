@@ -45,7 +45,7 @@ jobs:
 
       - name: Running Tests
         if: needs.changes.outputs.run-tests == 'true'
+        working-directory: operator
         run: |
-          cd ./operator/
           go mod tidy
           make test
