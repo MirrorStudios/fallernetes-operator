@@ -65,6 +65,7 @@ jobs:
       - name: Prepare fallernetes
         if: needs.changes.outputs.run-tests == 'true'
         run: |
+          cd ./operator/
           go mod tidy
           make docker-build IMG=fallernetes:v0.1.0
           kind load docker-image fallernetes:v0.1.0
@@ -81,7 +82,7 @@ jobs:
       - name: Lint Helm Chart
         if: needs.changes.outputs.run-tests == 'true'
         run: |
-          helm lint operator/dist/chart
+          helm lint ./operator/dist/chart
 
       - name: Install cert-manager via Helm
         if: needs.changes.outputs.run-tests == 'true'
