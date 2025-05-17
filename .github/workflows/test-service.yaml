@@ -28,9 +28,9 @@ jobs:
               - '.github/workflows/test-service.yml'
 
 
-  unit-test:
+  service-unit-test:
     runs-on: ubuntu-latest
-    name: Run unit tests
+    name: Run service unit tests
     needs:
       - changes
     steps:
