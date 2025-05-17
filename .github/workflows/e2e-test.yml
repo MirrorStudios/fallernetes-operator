@@ -59,3 +59,5 @@ jobs:
         run: |
           go mod tidy
           make test-e2e
+        env:
+          GITHUB_ACTIONS: true

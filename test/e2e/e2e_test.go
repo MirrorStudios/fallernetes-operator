@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -36,25 +37,28 @@ const serverName = "test-server"
 const systemns = "fallernetes-system"
 
 var controllerPodName string
+var githubActions = os.Getenv("GITHUB_ACTIONS")
 
 var _ = BeforeSuite(func() {
-	By("resetting the Kind cluster")
-	cmd := exec.Command("kind", "delete", "cluster", "--name", "kind")
-	_, _ = utils.Run(cmd)
-	cmd = exec.Command("kind", "create", "cluster", "--name", "kind")
-	_, err := utils.Run(cmd)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+	if githubActions != "true" {
+		By("resetting the Kind cluster")
+		cmd := exec.Command("kind", "delete", "cluster", "--name", "kind")
+		_, _ = utils.Run(cmd)
+		cmd = exec.Command("kind", "create", "cluster", "--name", "kind")
+		_, err := utils.Run(cmd)
+		ExpectWithOffset(1, err).NotTo(HaveOccurred())
+	}
 
 	By("installing the cert-manager")
 	Expect(utils.InstallCertManager()).To(Succeed())
 
 	By("creating manager system namespace")
-	cmd = exec.Command("kubectl", "create", "ns", systemns)
+	cmd := exec.Command("kubectl", "create", "ns", systemns)
 	_, _ = utils.Run(cmd)
 
 	By("building the manager(Operator) image")
 	cmd = exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage))
-	_, err = utils.Run(cmd)
+	_, err := utils.Run(cmd)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
 	By("loading the the manager(Operator) image on Kind")
@@ -159,17 +163,19 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	By("undeploying the controller-manager")
-	cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage))
-	_, err := utils.Run(cmd)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+	if githubActions != "true" {
+		By("undeploying the controller-manager")
+		cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage))
+		_, err := utils.Run(cmd)
+		ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
-	By("uninstalling the cert-manager bundle")
-	utils.UninstallCertManager()
+		By("uninstalling the cert-manager bundle")
+		utils.UninstallCertManager()
 
-	By("removing manager systemns")
-	cmd = exec.Command("kubectl", "delete", "ns", systemns)
-	_, _ = utils.Run(cmd)
+		By("removing manager systemns")
+		cmd = exec.Command("kubectl", "delete", "ns", systemns)
+		_, _ = utils.Run(cmd)
+	}
 })
 
 // Run e2e tests using the Ginkgo runner.

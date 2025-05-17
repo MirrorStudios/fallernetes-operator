@@ -49,7 +49,7 @@ var _ = Describe("GameType Controller", Ordered, func() {
 				}
 
 				// Verify Fleet exists for the GameType
-				getFleetCmd := exec.Command("kubectl", "get", "fleet", "-n", namespace, "--no-headers", "-l", "type="+gameTypeName)
+				getFleetCmd := exec.Command("kubectl", "get", "fleet", "-n", namespace, "--no-headers", "-l", "gametype="+gameTypeName)
 				fleetOutput, err := utils.Run(getFleetCmd)
 				if err != nil {
 					return fmt.Errorf("fleet for gametype %s not found", gameTypeName)
@@ -204,7 +204,7 @@ func allowGameTypeServersDelete(gameName string, namespace string) {
 		}
 		// Limit attempts to avoid infinite loops
 		By("Getting current servers in the fleet")
-		cmd := exec.Command("kubectl", "get", "servers", "-l", "type="+gameName, "-n", namespace, "-o", "name")
+		cmd := exec.Command("kubectl", "get", "servers", "-l", "gametype="+gameName, "-n", namespace, "-o", "name")
 		output, err := utils.Run(cmd)
 		if err != nil {
 			// Check if error is because no servers exist
