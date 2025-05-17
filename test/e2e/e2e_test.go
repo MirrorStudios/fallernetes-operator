@@ -18,7 +18,6 @@ package e2e
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -30,7 +29,7 @@ import (
 	"github.com/MirrorStudios/fallernetes/test/utils"
 )
 
-const projectimage = "example.com/loputoo:v0.0.1"
+const projectimage = "example.com/fallernetes-operator:v0.0.1"
 const example_server_image = "nginx:latest" //Just a random image to use as a "fake server"
 const sidecar_image = "unfamousthomas/fallernetes-sidecar:main"
 
@@ -57,7 +56,7 @@ var _ = BeforeSuite(func() {
 	_, _ = utils.Run(cmd)
 
 	By("building the manager(Operator) image")
-	cmd = exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage), fmt.Sprintf("SIDECAR_IMG=%s", sidecar_image))
+	cmd = exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage))
 	_, err = utils.Run(cmd)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
@@ -123,7 +122,7 @@ var _ = BeforeSuite(func() {
 		}
 
 		// Check that webhook service is ready
-		cmd = exec.Command("kubectl", "get", "svc", "loputoo-webhook-service",
+		cmd = exec.Command("kubectl", "get", "svc", "fallernetes-webhook-service",
 			"-n", systemns, "-o", "jsonpath={.spec.clusterIP}")
 		svcIP, err := utils.Run(cmd)
 		if err != nil || string(svcIP) == "" {
@@ -131,7 +130,7 @@ var _ = BeforeSuite(func() {
 		}
 
 		// Check that webhook endpoints are ready
-		cmd = exec.Command("kubectl", "get", "endpoints", "loputoo-webhook-service",
+		cmd = exec.Command("kubectl", "get", "endpoints", "fallernetes-webhook-service",
 			"-n", systemns, "-o", "jsonpath={.subsets[0].addresses[0].ip}")
 		endpointIP, err := utils.Run(cmd)
 		if err != nil || string(endpointIP) == "" {
@@ -140,14 +139,14 @@ var _ = BeforeSuite(func() {
 
 		// Verify webhook configurations are present
 		cmd = exec.Command("kubectl", "get", "mutatingwebhookconfiguration",
-			"loputoo-mutating-webhook-configuration")
+			"fallernetes-mutating-webhook-configuration")
 		_, err = utils.Run(cmd)
 		if err != nil {
 			return fmt.Errorf("mutating webhook configuration not found")
 		}
 
 		cmd = exec.Command("kubectl", "get", "validatingwebhookconfiguration",
-			"loputoo-validating-webhook-configuration")
+			"fallernetes-validating-webhook-configuration")
 		_, err = utils.Run(cmd)
 		if err != nil {
 			return fmt.Errorf("validating webhook configuration not found")
@@ -162,27 +161,27 @@ var _ = BeforeSuite(func() {
 	EventuallyWithOffset(1, verifyControllerUp, time.Minute, time.Second).Should(Succeed())
 })
 
-var _ = AfterSuite(func() {
-	By("undeploying the controller-manager")
-	cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage))
-	_, err := utils.Run(cmd)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-
-	By("uninstalling the cert-manager bundle")
-	utils.UninstallCertManager()
-
-	By("removing manager systemns")
-	cmd = exec.Command("kubectl", "delete", "ns", systemns)
-	_, _ = utils.Run(cmd)
-
-	By("Remove temp file")
-	err = os.Remove(serviceDeployFile)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-})
+//var _ = AfterSuite(func() {
+//	By("undeploying the controller-manager")
+//	cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage))
+//	_, err := utils.Run(cmd)
+//	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+//
+//	By("uninstalling the cert-manager bundle")
+//	utils.UninstallCertManager()
+//
+//	By("removing manager systemns")
+//	cmd = exec.Command("kubectl", "delete", "ns", systemns)
+//	_, _ = utils.Run(cmd)
+//
+//	By("Remove temp file")
+//	err = os.Remove(serviceDeployFile)
+//	ExpectWithOffset(1, err).NotTo(HaveOccurred())
+//})
 
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
-	_, _ = fmt.Fprintf(GinkgoWriter, "Starting loputoo suite\n")
+	_, _ = fmt.Fprintf(GinkgoWriter, "Starting fallernetes suite\n")
 	RunSpecs(t, "e2e suite")
 }

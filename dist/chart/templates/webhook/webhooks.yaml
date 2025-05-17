@@ -1,0 +1,188 @@
+{{- if .Values.webhook.enable }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: fallernetes-mutating-webhook-configuration
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- if .Values.certmanager.enable }}
+    cert-manager.io/inject-ca-from: "{{ $.Release.Namespace }}/serving-cert"
+    {{- end }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+webhooks:
+  - name: mfleet-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-gameserver-falloria-com-v1alpha1-fleet
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - fleets
+  - name: mgametype-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-gameserver-falloria-com-v1alpha1-gametype
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - gametypes
+  - name: mgametypeautoscaler-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-gameserver-falloria-com-v1alpha1-gametypeautoscaler
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - gametypeautoscalers
+  - name: mserver-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-gameserver-falloria-com-v1alpha1-server
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - servers
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: fallernetes-validating-webhook-configuration
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- if .Values.certmanager.enable }}
+    cert-manager.io/inject-ca-from: "{{ $.Release.Namespace }}/serving-cert"
+    {{- end }}
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+webhooks:
+  - name: vfleet-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-gameserver-falloria-com-v1alpha1-fleet
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - fleets
+  - name: vgametype-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-gameserver-falloria-com-v1alpha1-gametype
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - gametypes
+  - name: vgametypeautoscaler-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-gameserver-falloria-com-v1alpha1-gametypeautoscaler
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - gametypeautoscalers
+  - name: vserver-v1alpha1.kb.io
+    clientConfig:
+      service:
+        name: fallernetes-webhook-service
+        namespace: {{ .Release.Namespace }}
+        path: /validate-gameserver-falloria-com-v1alpha1-server
+    failurePolicy: Fail
+    sideEffects: None
+    admissionReviewVersions:
+      - v1
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - gameserver.falloria.com
+        apiVersions:
+          - v1alpha1
+        resources:
+          - servers
+{{- end }}

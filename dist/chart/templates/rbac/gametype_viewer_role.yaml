@@ -11,6 +11,8 @@ kind: ClusterRole
 metadata:
   labels:
     {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/name: fallernetes
+    app.kubernetes.io/managed-by: kustomize
   name: gametype-viewer-role
 rules:
 - apiGroups:
