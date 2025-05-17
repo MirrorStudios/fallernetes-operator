@@ -165,7 +165,7 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	if githubActions != "true" {
 		By("undeploying the controller-manager")
-		cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage))
+		cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage), fmt.Sprintf("ignore-not-found=%v", true))
 		_, err := utils.Run(cmd)
 		ExpectWithOffset(1, err).NotTo(HaveOccurred())
 
