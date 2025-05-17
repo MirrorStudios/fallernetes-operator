@@ -55,6 +55,10 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         run: kind version
 
+      - name: Create Kind Cluster
+        if: needs.changes.outputs.run-tests == 'true'
+        run: kind create cluster --name kind
+
       - name: Running Tests
         if: needs.changes.outputs.run-tests == 'true'
         run: |
