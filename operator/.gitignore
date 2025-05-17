@@ -1,3 +1,5 @@
+# IDE settings
+.idea/
 # Binaries for programs and plugins
 *.exe
 *.exe~
@@ -25,4 +27,3 @@ go.work
 *.swp
 *.swo
 *~
-/.idea

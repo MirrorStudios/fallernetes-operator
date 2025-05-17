@@ -1,7 +1,10 @@
-name: Operator Unit Tests
+name: Sidecar Unit Tests
 
 on:
   pull_request:
+    paths:
+      - 'internal/**'
+      - '.github/workflows/test-sidecar.yaml'
 
 permissions:
   contents: read
@@ -21,31 +24,35 @@ jobs:
         with:
           filters: |
             run-tests:
-              - 'internal/**'
-              - 'api/**'
-              - '.github/workflows/unit-test.yml'
+              - 'sidecar/internal/**'
+              - '.github/workflows/test-sidecar.yml'
+
 
   unit-test:
-    name: Unit Test
+    runs-on: ubuntu-latest
+    name: Run unit tests
     needs:
       - changes
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
       - name: Check if test should run
         if: needs.changes.outputs.run-tests != 'true'
         run: echo "No relevant changes. Skipping tests."
 
-      - name: Setup Go
+      - name: Checkout code
+        if: needs.changes.outputs.run-tests == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Go
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: ./operator/go.mod
+          go-version-file: operator/go.mod
 
-      - name: Running Tests
+      - name: Run tests
         if: needs.changes.outputs.run-tests == 'true'
-        working-directory: operator
-        run: |
-          go mod tidy
-          make test
+        working-directory: sidecar
+        run:  |
+          go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
+
+
+

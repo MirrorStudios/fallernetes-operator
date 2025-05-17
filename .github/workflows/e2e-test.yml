@@ -1,4 +1,4 @@
-name: Conditional E2E Tests
+name: Operator E2E Tests
 
 on:
   pull_request:
@@ -21,10 +21,10 @@ jobs:
         with:
           filters: |
             run-tests:
-              - 'internal/**'
-              - 'api/**'
-              - '.github/workflows/test-e2e.yml'
-              - 'test/**'
+              - 'operator/internal/**'
+              - 'operator/api/**'
+              - '.github/workflows/e2e-test.yml'
+              - 'operator/test/**'
 
   test-e2e:
     name: Run E2E Tests
@@ -40,13 +40,14 @@ jobs:
 
       - name: Setup Go
         if: needs.changes.outputs.run-tests == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: go.mod
+          go-version-file: ./operator/go.mod
 
       - name: Install the latest version of kind
         if: needs.changes.outputs.run-tests == 'true'
         run: |
+          cd ./operator
           curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
@@ -62,6 +63,7 @@ jobs:
       - name: Running Tests
         if: needs.changes.outputs.run-tests == 'true'
         run: |
+          cd ./operator/
           go mod tidy
           make test-e2e
         env:
