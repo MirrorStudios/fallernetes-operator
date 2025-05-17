@@ -44,7 +44,7 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ./operator/go.mod
 
       - name: Install the latest version of kind
         if: needs.changes.outputs.run-tests == 'true'
