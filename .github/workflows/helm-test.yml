@@ -1,0 +1,107 @@
+name: Conditional Chart Tests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.filter.outputs.run-tests }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        with:
+          filters: |
+            run-tests:
+              - 'internal/**'
+              - 'api/**'
+              - '.github/workflows/helm-test.yml'
+              - 'dist/**'
+
+  test-e2e-helm:
+    name: Run Helm Chart Tests
+    needs:
+      - changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if test should run
+        if: needs.changes.outputs.run-tests != 'true'
+        run: echo "No relevant changes. Skipping tests."
+
+      - name: Clone the code
+        if: needs.changes.outputs.run-tests == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        if: needs.changes.outputs.run-tests == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install the latest version of kind
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Verify kind installation
+        if: needs.changes.outputs.run-tests == 'true'
+        run: kind version
+
+      - name: Create Kind Cluster
+        if: needs.changes.outputs.run-tests == 'true'
+        run: kind create cluster --name kind
+
+      - name: Prepare fallernetes
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          go mod tidy
+          make docker-build IMG=fallernetes:v0.1.0
+          kind load docker-image fallernetes:v0.1.0
+
+      - name: Install Helm
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Verify Helm installation
+        if: needs.changes.outputs.run-tests == 'true'
+        run: helm version
+
+      - name: Lint Helm Chart
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          helm lint ./dist/chart
+
+      - name: Install cert-manager via Helm
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --set installCRDs=true
+
+      - name: Wait for cert-manager to be ready
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          kubectl wait --namespace cert-manager --for=condition=available --timeout=300s deployment/cert-manager
+          kubectl wait --namespace cert-manager --for=condition=available --timeout=300s deployment/cert-manager-cainjector
+          kubectl wait --namespace cert-manager --for=condition=available --timeout=300s deployment/cert-manager-webhook
+
+      - name: Install Helm chart for project
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          helm install my-release ./dist/chart --create-namespace --namespace fallernetes-system
+
+      - name: Check Helm release status
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          helm status my-release --namespace fallernetes-system

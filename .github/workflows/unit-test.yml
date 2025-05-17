@@ -1,0 +1,50 @@
+name: Conditional Unit Tests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.filter.outputs.run-tests }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        with:
+          filters: |
+            run-tests:
+              - 'internal/**'
+              - 'api/**'
+              - '.github/workflows/test-chart.yml'
+
+  unit-test:
+    name: Unit Test
+    needs:
+      - changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if test should run
+        if: needs.changes.outputs.run-tests != 'true'
+        run: echo "No relevant changes. Skipping tests."
+
+      - name: Setup Go
+        if: needs.changes.outputs.run-tests == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Running Tests
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          go mod tidy
+          make test

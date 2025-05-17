@@ -22,6 +22,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/MirrorStudios/fallernetes/internal/utils"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -39,6 +41,7 @@ import (
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
 	"github.com/MirrorStudios/fallernetes/internal/controller"
+	webhookgameserverv1alpha1 "github.com/MirrorStudios/fallernetes/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -202,23 +205,31 @@ func main() {
 		os.Exit(1)
 	}
 
+	prodChecker := utils.ProdDeletionChecker{}
+
 	if err = (&controller.ServerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:            mgr.GetClient(),
+		Scheme:            mgr.GetScheme(),
+		Recorder:          mgr.GetEventRecorderFor("server-controller"),
+		DeletionAllowed:   prodChecker,
+		ErrorOnNotAllowed: false,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Server")
 		os.Exit(1)
 	}
 	if err = (&controller.FleetReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		Recorder:        mgr.GetEventRecorderFor("fleet"),
+		DeletionChecker: prodChecker,
+		Scheme:          mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Fleet")
 		os.Exit(1)
 	}
 	if err = (&controller.GameTypeReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("gametype"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GameType")
 		os.Exit(1)
@@ -229,6 +240,34 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GameTypeAutoscaler")
 		os.Exit(1)
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupServerWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Server")
+			os.Exit(1)
+		}
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupFleetWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Fleet")
+			os.Exit(1)
+		}
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupGameTypeWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "GameType")
+			os.Exit(1)
+		}
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err = webhookgameserverv1alpha1.SetupGameTypeAutoscalerWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "GameTypeAutoscaler")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 

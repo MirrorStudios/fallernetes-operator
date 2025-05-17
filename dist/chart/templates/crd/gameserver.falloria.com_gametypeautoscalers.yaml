@@ -23,36 +23,67 @@ spec:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: GameTypeAutoscaler is the Schema for the gametypeautoscalers
-          API.
         properties:
           apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
           spec:
-            description: GameTypeAutoscalerSpec defines the desired state of GameTypeAutoscaler.
             properties:
-              foo:
-                description: Foo is an example field of GameTypeAutoscaler. Edit gametypeautoscaler_types.go
-                  to remove/update
+              gameTypeName:
                 type: string
+              policy:
+                properties:
+                  type:
+                    enum:
+                    - webhook
+                    type: string
+                  webhook:
+                    properties:
+                      path:
+                        type: string
+                      service:
+                        properties:
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                          port:
+                            type: integer
+                        required:
+                        - name
+                        - namespace
+                        - port
+                        type: object
+                      url:
+                        type: string
+                    required:
+                    - path
+                    type: object
+                required:
+                - type
+                - webhook
+                type: object
+              sync:
+                properties:
+                  interval:
+                    type: string
+                  type:
+                    enum:
+                    - fixedinterval
+                    type: string
+                required:
+                - interval
+                - type
+                type: object
+            required:
+            - gameTypeName
+            - policy
+            - sync
             type: object
           status:
-            description: GameTypeAutoscalerStatus defines the observed state of GameTypeAutoscaler.
             type: object
         type: object
     served: true

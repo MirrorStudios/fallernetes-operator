@@ -20,16 +20,58 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+type PolicyStrategy string
+type SyncStrategy string
+
+var validPolicyStrategies = map[PolicyStrategy]struct{}{
+	Webhook: {},
+	// Add new strategies here as needed
+}
+var validSyncStrategy = map[SyncStrategy]struct{}{
+	FixedInterval: {},
+	// Add new strategies here as needed
+}
+
+var (
+	Webhook PolicyStrategy = "webhook"
+
+	FixedInterval SyncStrategy = "fixedinterval"
+)
+
+//The following structs handle the policy of how to sync
+
+type AutoscalePolicy struct {
+	// +kubebuilder:validation:Enum=webhook
+	Type                  PolicyStrategy        `json:"type"`
+	WebhookAutoscalerSpec WebhookAutoscalerSpec `json:"webhook"`
+}
+
+type WebhookAutoscalerSpec struct {
+	// +kubebuilder:validation:Optional
+	Url  *string `json:"url,omitempty"`
+	Path *string `json:"path"`
+	// +kubebuilder:validation:Optional
+	Service *Service `json:"service"`
+}
+
+type Service struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Port      int    `json:"port"`
+}
+
+// The following sync structs handle when to sync
+type Sync struct {
+	// +kubebuilder:validation:Enum=fixedinterval
+	Type SyncStrategy     `json:"type"`
+	Time *metav1.Duration `json:"interval"`
+}
 
 // GameTypeAutoscalerSpec defines the desired state of GameTypeAutoscaler.
 type GameTypeAutoscalerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of GameTypeAutoscaler. Edit gametypeautoscaler_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	GameTypeName    string          `json:"gameTypeName"`
+	AutoscalePolicy AutoscalePolicy `json:"policy"`
+	Sync            Sync            `json:"sync"`
 }
 
 // GameTypeAutoscalerStatus defines the observed state of GameTypeAutoscaler.

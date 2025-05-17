@@ -1,0 +1,68 @@
+name: Conditional E2E Tests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run-tests: ${{ steps.filter.outputs.run-tests }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        with:
+          filters: |
+            run-tests:
+              - 'internal/**'
+              - 'api/**'
+              - '.github/workflows/test-e2e.yml'
+              - 'test/**'
+
+  test-e2e:
+    name: Run E2E Tests
+    needs:
+      - changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check if test should run
+        if: needs.changes.outputs.run-tests != 'true'
+        run: echo "No relevant changes. Skipping tests."
+
+      - name: Setup Go
+        if: needs.changes.outputs.run-tests == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install the latest version of kind
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Verify kind installation
+        if: needs.changes.outputs.run-tests == 'true'
+        run: kind version
+
+      - name: Create Kind Cluster
+        if: needs.changes.outputs.run-tests == 'true'
+        run: kind create cluster --name kind
+
+      - name: Running Tests
+        if: needs.changes.outputs.run-tests == 'true'
+        run: |
+          go mod tidy
+          make test-e2e
+        env:
+          GITHUB_ACTIONS: true

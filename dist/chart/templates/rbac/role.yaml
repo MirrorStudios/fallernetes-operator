@@ -5,8 +5,29 @@ kind: ClusterRole
 metadata:
   labels:
     {{- include "chart.labels" . | nindent 4 }}
+    app.kubernetes.io/name: fallernetes
+    app.kubernetes.io/managed-by: kustomize
   name: fallernetes-manager-role
 rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - gameserver.falloria.com
   resources:

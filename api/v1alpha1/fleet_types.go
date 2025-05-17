@@ -18,30 +18,55 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"reflect"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// FleetSpec defines the desired state of Fleet.
+// FleetSpec defines the desired state of Fleet
 type FleetSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Fleet. Edit fleet_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	ServerSpec ServerSpec   `json:"spec"`
+	Scaling    FleetScaling `json:"scaling"`
 }
 
-// FleetStatus defines the observed state of Fleet.
+type Priority string
+
+var validPriorities = map[Priority]struct{}{
+	OldestFirst: {},
+	NewestFirst: {},
+	// Add new priorities here as needed
+}
+
+const (
+	OldestFirst Priority = "oldest_first"
+	NewestFirst Priority = "newest_first"
+)
+
+type FleetScaling struct {
+	// How many replicas of the servers should exist
+	// +kubebuilder:default=1
+	Replicas int32 `json:"replicas"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	// If we should first delete the servers where deletion is allowed
+	PrioritizeAllowed bool `json:"prioritizeAllowed"`
+	// Whether we should first delete the oldest or newest
+	// +kubebuilder:default=oldest_first
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=oldest_first;smallest_first
+	AgePriority Priority `json:"agePriority"`
+}
+
+// FleetStatus defines the observed state of Fleet
 type FleetStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Conditions      []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	CurrentReplicas int32              `json:"current_replicas,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Desired Replicas",type=integer,JSONPath=`.spec.scaling.replicas`
+// +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.current_replicas`
 
-// Fleet is the Schema for the fleets API.
+// Fleet is the Schema for the fleets API
 type Fleet struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -61,4 +86,8 @@ type FleetList struct {
 
 func init() {
 	SchemeBuilder.Register(&Fleet{}, &FleetList{})
+}
+
+func AreFleetsPodsEqual(fleet1, fleet2 *FleetSpec) bool {
+	return reflect.DeepEqual(fleet1.ServerSpec.Pod, fleet2.ServerSpec.Pod)
 }
