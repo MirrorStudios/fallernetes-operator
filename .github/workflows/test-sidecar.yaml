@@ -42,6 +42,10 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/checkout@v4
 
+      - name: Sidecar Folder
+        if: needs.changes.outputs.run-tests == 'true'
+        run: cd ./sidecar/
+
       - name: Set up Go
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@v5
@@ -51,5 +55,4 @@ jobs:
       - name: Run tests
         if: needs.changes.outputs.run-tests == 'true'
         run:  |
-          cd ./sidecar/
           go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
