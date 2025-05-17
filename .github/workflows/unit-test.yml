@@ -39,7 +39,7 @@ jobs:
 
       - name: Setup Go
         if: needs.changes.outputs.run-tests == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
           go-version-file: ./operator/go.mod
 
