@@ -32,7 +32,7 @@ import (
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
 )
 
-const FLEET_FINALIZER = "fleets.unfamousthomas.me/finalizer"
+const FLEET_FINALIZER = "fleets.falloria.com/finalizer"
 
 // FleetReconciler reconciles a Fleet object
 type FleetReconciler struct {

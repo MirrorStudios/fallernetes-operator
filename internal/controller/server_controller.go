@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const SERVER_FINALIZER = "servers.unfamousthomas.me/finalizer"
+const SERVER_FINALIZER = "server.falloria.com/finalizer"
 
 // ServerReconciler reconciles a Server object
 type ServerReconciler struct {

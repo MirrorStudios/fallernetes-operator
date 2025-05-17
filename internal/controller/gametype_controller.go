@@ -41,7 +41,7 @@ type GameTypeReconciler struct {
 	Recorder record.EventRecorder
 }
 
-const TypeFinalizer = "gametype.unfamousthomas.me/finalizer"
+const TypeFinalizer = "gametype.falloria.com/finalizer"
 
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypes/status,verbs=get;update;patch

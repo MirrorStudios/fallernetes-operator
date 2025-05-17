@@ -127,8 +127,8 @@ var _ = Describe("Fleet Controller", Ordered, func() {
 				//todo this needs to actually check finalizers
 				return string(output), err
 			}
-
-			Eventually(getFleetFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"fleets.unfamousthomas.me/finalizer\"]"))
+			//server.gameserver.falloria.com/t
+			Eventually(getFleetFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"fleets.falloria.com/finalizer\"]"))
 		})
 
 		It("Should update status to reflect current number of servers", func() {
@@ -242,7 +242,7 @@ func checkIfPodsOnlineForFleet(fleetName string, namespace string) error {
 	servers := strings.Split(strings.TrimSpace(string(output)), "\n")
 
 	for _, server := range servers {
-		serverName := strings.TrimPrefix(server, "server.network.unfamousthomas.me/")
+		serverName := strings.TrimPrefix(server, "server.gameserver.falloria.com/")
 		podName := serverName + "-pod"
 
 		cmd := exec.Command("kubectl", "get", "pod", podName, "-n", namespace, "-o", "jsonpath={.status.phase}")
@@ -295,7 +295,7 @@ func allowFleetServersDelete(fleetName string, namespace string) {
 		processedAny := false
 
 		for _, server := range servers {
-			serverName := strings.TrimPrefix(server, "server.network.unfamousthomas.me/")
+			serverName := strings.TrimPrefix(server, "server.gameserver.falloria.com/")
 
 			if processedServers[serverName] {
 				continue
@@ -342,7 +342,7 @@ func allowFleetServersDelete(fleetName string, namespace string) {
 
 		allProcessed := true
 		for _, server := range servers {
-			serverName := strings.TrimPrefix(server, "server.network.unfamousthomas.me/")
+			serverName := strings.TrimPrefix(server, "server.gameserver.falloria.com/")
 			if !processedServers[serverName] {
 				allProcessed = false
 				break

@@ -27,7 +27,8 @@ jobs:
 
   test-e2e:
     name: test
-    needs: changes
+    needs:
+      - changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

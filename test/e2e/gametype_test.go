@@ -133,7 +133,7 @@ var _ = Describe("GameType Controller", Ordered, func() {
 				return string(output), err
 			}
 
-			Eventually(getGameTypeFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"gametype.unfamousthomas.me/finalizer\"]"))
+			Eventually(getGameTypeFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"gametype.falloria.com/finalizer\"]"))
 		})
 
 		It("Should create a new fleet when fleet spec changes", func() {
@@ -226,7 +226,7 @@ func allowGameTypeServersDelete(gameName string, namespace string) {
 		processedAny := false
 
 		for _, server := range servers {
-			serverName := strings.TrimPrefix(server, "server.network.unfamousthomas.me/")
+			serverName := strings.TrimPrefix(server, "server.gameserver.falloria.com/")
 
 			if processedServers[serverName] {
 				continue
@@ -273,7 +273,7 @@ func allowGameTypeServersDelete(gameName string, namespace string) {
 
 		allProcessed := true
 		for _, server := range servers {
-			serverName := strings.TrimPrefix(server, "server.network.unfamousthomas.me/")
+			serverName := strings.TrimPrefix(server, "server.gameserver.falloria.com/")
 			if !processedServers[serverName] {
 				allProcessed = false
 				break

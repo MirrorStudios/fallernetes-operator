@@ -141,12 +141,12 @@ var _ = Describe("Server Controller", Ordered, func() {
 			serverFinalizers := exec.Command("kubectl", "get", "server", serverName, "-n", namespace, "-o", "jsonpath={.metadata.finalizers}")
 			output, err := utils.Run(serverFinalizers)
 			ExpectWithOffset(1, err).NotTo(HaveOccurred())
-			ExpectWithOffset(1, string(output)).Should(Equal("[\"servers.unfamousthomas.me/finalizer\"]"))
+			ExpectWithOffset(1, string(output)).Should(Equal("[\"server.falloria.com/finalizer\"]"))
 
 			podFinalizers := exec.Command("kubectl", "get", "pod", serverName+"-pod", "-n", namespace, "-o", "jsonpath={.metadata.finalizers}")
 			output, err = utils.Run(podFinalizers)
 			ExpectWithOffset(1, err).NotTo(HaveOccurred())
-			ExpectWithOffset(1, string(output)).Should(Equal("[\"servers.unfamousthomas.me/finalizer\"]"))
+			ExpectWithOffset(1, string(output)).Should(Equal("[\"server.falloria.com/finalizer\"]"))
 		})
 
 		It("Creates a pod when server is created", func() {

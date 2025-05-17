@@ -7,6 +7,7 @@ permissions:
   contents: read
 
 jobs:
+  name: "Detect changes"
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -27,6 +28,8 @@ jobs:
 
   test-e2e-helm:
     name: Run on Ubuntu
+    needs:
+      - changes
     runs-on: ubuntu-latest
     steps:
       - name: Check if test should run
@@ -50,7 +53,7 @@ jobs:
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
 
-      - name: Verify kind installation'
+      - name: Verify kind installation
         if: needs.changes.outputs.run-tests == 'true'
         run: kind version
 

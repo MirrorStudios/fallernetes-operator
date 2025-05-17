@@ -25,8 +25,9 @@ jobs:
               - '.github/workflows/test-chart.yml'
 
   unit-test:
-    name: test 
-    needs: changes
+    name: test
+    needs:
+      - changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
