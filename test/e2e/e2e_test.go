@@ -40,6 +40,7 @@ var controllerPodName string
 var githubActions = os.Getenv("GITHUB_ACTIONS")
 
 var _ = BeforeSuite(func() {
+	fmt.Printf("Github Actions: %v\n", githubActions)
 	if githubActions != "true" {
 		By("resetting the Kind cluster")
 		cmd := exec.Command("kind", "delete", "cluster", "--name", "kind")
