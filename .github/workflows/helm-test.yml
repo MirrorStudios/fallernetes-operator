@@ -1,4 +1,4 @@
-name: Conditional Chart Tests
+name: Operator Chart Tests
 
 on:
   pull_request:

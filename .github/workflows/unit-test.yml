@@ -1,4 +1,4 @@
-name: Conditional Unit Tests
+name: Operator Unit Tests
 
 on:
   pull_request:
@@ -41,7 +41,7 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ./operator/go.mod
 
       - name: Running Tests
         if: needs.changes.outputs.run-tests == 'true'
