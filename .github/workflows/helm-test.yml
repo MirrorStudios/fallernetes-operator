@@ -3,6 +3,9 @@ name: Test Chart
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   changes:
     runs-on: ubuntu-latest
