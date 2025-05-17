@@ -8,6 +8,7 @@ permissions:
 
 jobs:
   changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
@@ -26,7 +27,7 @@ jobs:
               - 'test/**'
 
   test-e2e:
-    name: test
+    name: Run E2E Tests
     needs:
       - changes
     runs-on: ubuntu-latest

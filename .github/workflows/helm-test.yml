@@ -7,8 +7,8 @@ permissions:
   contents: read
 
 jobs:
-  name: "Detect changes"
   changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       run-tests: ${{ steps.filter.outputs.run-tests }}
@@ -27,7 +27,7 @@ jobs:
               - 'dist/**'
 
   test-e2e-helm:
-    name: Run on Ubuntu
+    name: Run Helm Chart Tests
     needs:
       - changes
     runs-on: ubuntu-latest
