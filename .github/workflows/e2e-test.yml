@@ -1,4 +1,4 @@
-name: Conditional Unit Tests
+name: Conditional E2E Tests
 
 on:
   pull_request:
