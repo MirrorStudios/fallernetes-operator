@@ -198,7 +198,9 @@ func (r *GameTypeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // It first checks if we have the finalizer, then we can imagine we are still removing the fleets
 // Once all fleets are removed, we remove the finalizer
 func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) error {
+	fmt.Printf("Triggered deletion for gametype\n")
 	if controllerutil.ContainsFinalizer(gametype, TypeFinalizer) {
+		fmt.Printf("Has finalizer in gametype\n")
 		//Finalizer not yet removed, we can presume that fleet deletion in progress or starting
 		fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
 		if err != nil {

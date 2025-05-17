@@ -106,12 +106,12 @@ var _ = Describe("GameType Controller", Ordered, func() {
 				}
 
 				servers := strings.Split(strings.TrimSpace(output), "\n")
-				if len(servers) == 0 {
-					log.Println("No servers found, all servers have been processed")
+				if len(servers) == 0 || (len(servers) == 1 && servers[0] == "") {
+					log.Println("All servers deleted")
 					return nil
 				}
 
-				return fmt.Errorf("some servers still exist")
+				return fmt.Errorf("some servers still exist: " + strings.Join(servers, "\n"))
 			}, 3*time.Minute, 5*time.Second).Should(Succeed())
 
 			time.Sleep(time.Second * 3)

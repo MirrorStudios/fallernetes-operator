@@ -163,21 +163,21 @@ var _ = BeforeSuite(func() {
 	EventuallyWithOffset(1, verifyControllerUp, time.Minute, time.Second).Should(Succeed())
 })
 
-var _ = AfterSuite(func() {
-	if githubActions != "true" {
-		By("undeploying the controller-manager")
-		cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage), fmt.Sprintf("ignore-not-found=%v", true))
-		_, err := utils.Run(cmd)
-		ExpectWithOffset(1, err).NotTo(HaveOccurred())
-
-		By("uninstalling the cert-manager bundle")
-		utils.UninstallCertManager()
-
-		By("removing manager systemns")
-		cmd = exec.Command("kubectl", "delete", "ns", systemns)
-		_, _ = utils.Run(cmd)
-	}
-})
+//var _ = AfterSuite(func() {
+//	if githubActions != "true" {
+//		By("undeploying the controller-manager")
+//		cmd := exec.Command("make", "undeploy", fmt.Sprintf("IMG=%s", projectimage), fmt.Sprintf("ignore-not-found=%v", true))
+//		_, err := utils.Run(cmd)
+//		ExpectWithOffset(1, err).NotTo(HaveOccurred())
+//
+//		By("uninstalling the cert-manager bundle")
+//		utils.UninstallCertManager()
+//
+//		By("removing manager systemns")
+//		cmd = exec.Command("kubectl", "delete", "ns", systemns)
+//		_, _ = utils.Run(cmd)
+//	}
+//})
 
 // Run e2e tests using the Ginkgo runner.
 func TestE2E(t *testing.T) {
