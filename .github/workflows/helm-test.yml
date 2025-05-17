@@ -40,10 +40,6 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/checkout@v4
 
-      - name: Operator Folder
-        if: needs.changes.outputs.run-tests == 'true'
-        run: cd ./operator/
-
       - name: Setup Go
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@v5
@@ -53,6 +49,7 @@ jobs:
       - name: Install the latest version of kind
         if: needs.changes.outputs.run-tests == 'true'
         run: |
+          cd ./operator/
           curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
@@ -84,8 +81,7 @@ jobs:
       - name: Lint Helm Chart
         if: needs.changes.outputs.run-tests == 'true'
         run: |
-          cd ..
-          helm lint ./dist/chart
+          helm lint operator/dist/chart
 
       - name: Install cert-manager via Helm
         if: needs.changes.outputs.run-tests == 'true'
@@ -104,7 +100,7 @@ jobs:
       - name: Install Helm chart for project
         if: needs.changes.outputs.run-tests == 'true'
         run: |
-          helm install my-release ./dist/chart --create-namespace --namespace fallernetes-system
+          helm install my-release ./operator/dist/chart --create-namespace --namespace fallernetes-system
 
       - name: Check Helm release status
         if: needs.changes.outputs.run-tests == 'true'

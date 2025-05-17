@@ -42,7 +42,7 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: ./operator/go.mod
 
       - name: Install the latest version of kind
         if: needs.changes.outputs.run-tests == 'true'
@@ -63,6 +63,7 @@ jobs:
       - name: Running Tests
         if: needs.changes.outputs.run-tests == 'true'
         run: |
+          cd ./operator/
           go mod tidy
           make test-e2e
         env:
