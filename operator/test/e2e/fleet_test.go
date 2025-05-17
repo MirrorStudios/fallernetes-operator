@@ -127,7 +127,6 @@ var _ = Describe("Fleet Controller", Ordered, func() {
 				//todo this needs to actually check finalizers
 				return string(output), err
 			}
-			//server.gameserver.falloria.com/t
 			Eventually(getFleetFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"fleets.falloria.com/finalizer\"]"))
 		})
 

@@ -21,10 +21,10 @@ jobs:
         with:
           filters: |
             run-tests:
-              - 'internal/**'
-              - 'api/**'
-              - '.github/workflows/test-e2e.yml'
-              - 'test/**'
+              - 'operator/internal/**'
+              - 'operator/api/**'
+              - '.github/workflows/e2e-test.yml'
+              - 'operator/test/**'
 
   test-e2e:
     name: Run E2E Tests
@@ -47,6 +47,7 @@ jobs:
       - name: Install the latest version of kind
         if: needs.changes.outputs.run-tests == 'true'
         run: |
+          cd ./operator
           curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-amd64
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
