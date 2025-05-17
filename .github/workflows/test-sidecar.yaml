@@ -28,9 +28,9 @@ jobs:
               - '.github/workflows/test-sidecar.yml'
 
 
-  unit-test:
+  sidecar-unit-test:
     runs-on: ubuntu-latest
-    name: Run unit tests
+    name: Run sidecar unit tests
     needs:
       - changes
     steps:
