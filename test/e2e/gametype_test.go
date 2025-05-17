@@ -91,7 +91,28 @@ var _ = Describe("GameType Controller", Ordered, func() {
 			}
 
 			By("Allowing server deletion")
-			allowGameTypeServersDelete(gameTypeName, namespace)
+			Eventually(func() error {
+				allowGameTypeServersDelete(gameTypeName, namespace)
+				By("Getting current servers in the fleet")
+				cmd := exec.Command("kubectl", "get", "servers", "-l", "gametype="+gameTypeName, "-n", namespace, "-o", "name")
+				output, err := utils.Run(cmd)
+				if err != nil {
+					// Check if error is because no servers exist
+					if strings.Contains(err.Error(), "No resources found") {
+						log.Println("No servers found, all servers have been processed")
+						return nil
+					}
+					return fmt.Errorf("failed to get server:%s", err)
+				}
+
+				servers := strings.Split(strings.TrimSpace(output), "\n")
+				if len(servers) == 0 {
+					log.Println("No servers found, all servers have been processed")
+					return nil
+				}
+
+				return fmt.Errorf("some servers still exist")
+			}, 3*time.Minute, 5*time.Second).Should(Succeed())
 
 			time.Sleep(time.Second * 3)
 			By("Verifying gametype was deleted")
