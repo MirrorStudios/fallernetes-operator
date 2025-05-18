@@ -26,6 +26,13 @@ type ServerSpec struct {
 	Pod              v1.PodSpec       `json:"pod,omitempty"`
 	TimeOut          *metav1.Duration `json:"timeout"`
 	AllowForceDelete bool             `json:"allowForceDelete,omitempty"`
+	SidecarSettings  *SidecarSettings `json:"sidecar,omitempty"`
+}
+
+type SidecarSettings struct {
+	Port         int    `json:"port,omitempty"`
+	SidecarImage string `json:"image,omitempty"`
+	LogDebug     bool   `json:"logDebug,omitempty"`
 }
 
 type Server struct {
