@@ -3676,6 +3676,9 @@ spec:
                         type: object
                       sidecar:
                         properties:
+                          image:
+                            default: unfamousthomas/fallernetes-sidecar:main
+                            type: string
                           port:
                             default: 8080
                             format: int32

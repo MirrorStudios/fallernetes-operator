@@ -38,7 +38,7 @@ type SidecarSettings struct {
 	// +kubebuilder:validation:Optional
 	Port *int32 `json:"port"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=unfamousthomas/fallernetes-sidecar:main
+	// +kubebuilder:default="unfamousthomas/fallernetes-sidecar:main"
 	SidecarImage string `json:"image,omitempty"`
 }
 
