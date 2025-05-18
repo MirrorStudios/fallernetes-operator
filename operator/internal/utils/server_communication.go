@@ -3,6 +3,7 @@ package utils
 import (
 	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	"strconv"
 	"time"
 )
 
@@ -26,10 +27,11 @@ func (p ProdDeletionChecker) IsDeletionAllowed(server *v1alpha1.Server, pod *cor
 			return true, nil
 		}
 	}
-	err := RequestShutdown(pod)
+	port := strconv.Itoa(server.Spec.SidecarSettings.Port)
+	err := RequestShutdown(pod, port)
 	if err != nil {
 		return false, err
 	}
-	allowed, err := IsDeleteAllowed(pod)
+	allowed, err := IsDeleteAllowed(pod, port)
 	return allowed, err
 }
