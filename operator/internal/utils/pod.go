@@ -15,11 +15,13 @@ func addContainer(spec *corev1.PodSpec, container corev1.Container) *corev1.PodS
 
 func getPodSpec(server *v1alpha1.Server) *corev1.PodSpec {
 	spec := server.Spec
-	port := spec.SidecarSettings.Port
-	portStr := strconv.Itoa(int(*port))
+	sidecarSettings := spec.SidecarSettings
+	portStr := strconv.Itoa(sidecarSettings.Port)
+	debugStr := strconv.FormatBool(sidecarSettings.LogDebug)
+
 	pod := addContainer(&spec.Pod, corev1.Container{
 		Name:  "fallernetes-sidecar",
-		Image: spec.SidecarSettings.SidecarImage,
+		Image: sidecarSettings.SidecarImage,
 		Ports: []corev1.ContainerPort{
 			{
 				Name:          "http",
@@ -28,8 +30,12 @@ func getPodSpec(server *v1alpha1.Server) *corev1.PodSpec {
 		},
 		Env: []corev1.EnvVar{
 			{
-				Name:  "SERVER_PORT",
+				Name:  "PORT",
 				Value: portStr,
+			},
+			{
+				Name:  "LOG_DEBUG",
+				Value: debugStr,
 			},
 		},
 		ImagePullPolicy: corev1.PullIfNotPresent,

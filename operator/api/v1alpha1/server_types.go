@@ -36,10 +36,13 @@ type ServerSpec struct {
 type SidecarSettings struct {
 	// +kubebuilder:default=8080
 	// +kubebuilder:validation:Optional
-	Port *int32 `json:"port"`
+	Port int `json:"port"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="unfamousthomas/fallernetes-sidecar:main"
 	SidecarImage string `json:"image,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	LogDebug bool `json:"logDebug,omitempty"`
 }
 
 // ServerStatus defines the observed state of Server
