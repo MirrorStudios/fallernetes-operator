@@ -7,4 +7,5 @@ type App struct {
 	Mux               *http.ServeMux
 	DeleteAllowed     bool
 	ShutdownRequested bool
+	Port              int
 }
