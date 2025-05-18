@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"fmt"
+	"github.com/MirrorStudios/fallernetes/internal/controller"
 	"github.com/MirrorStudios/fallernetes/test/utils"
 	"log"
 	"os"
@@ -127,7 +128,7 @@ var _ = Describe("Fleet Controller", Ordered, func() {
 				//todo this needs to actually check finalizers
 				return string(output), err
 			}
-			Eventually(getFleetFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"fleets.falloria.com/finalizer\"]"))
+			Eventually(getFleetFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"" + controller.FLEET_FINALIZER + "\"]"))
 		})
 
 		It("Should update status to reflect current number of servers", func() {

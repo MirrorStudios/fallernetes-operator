@@ -1,11 +1,11 @@
 package utils
 
 import (
-	"fmt"
 	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
+	"strconv"
 )
 
 func addContainer(spec *corev1.PodSpec, container corev1.Container) *corev1.PodSpec {
@@ -13,26 +13,28 @@ func addContainer(spec *corev1.PodSpec, container corev1.Container) *corev1.PodS
 	return spec
 }
 
-func getPodSpec(server *v1alpha1.Server) (*corev1.PodSpec, bool) {
+func getPodSpec(server *v1alpha1.Server) *corev1.PodSpec {
 	spec := server.Spec
-	sidecarImage := os.Getenv("SIDECAR_IMAGE")
-	defaultImage := false
-	if sidecarImage == "" {
-		sidecarImage = "unfamousthomas/fallernetes-sidecar:main"
-		fmt.Println("SIDECAR_IMAGE env var not set, defaulting to " + sidecarImage)
-		defaultImage = true
-	}
+	port := spec.SidecarSettings.Port
+	portStr := strconv.Itoa(int(*port))
 	pod := addContainer(&spec.Pod, corev1.Container{
-		Name:  "loputoo-sidecar",
-		Image: sidecarImage,
+		Name:  "fallernetes-sidecar",
+		Image: spec.SidecarSettings.SidecarImage,
 		Ports: []corev1.ContainerPort{
 			{
 				Name:          "http",
 				ContainerPort: 8080,
 			},
 		},
+		Env: []corev1.EnvVar{
+			{
+				Name:  "SERVER_PORT",
+				Value: portStr,
+			},
+		},
 		ImagePullPolicy: corev1.PullIfNotPresent,
 	})
+
 	for i := range pod.Containers {
 		container := &pod.Containers[i]
 		container.Env = append(container.Env, corev1.EnvVar{
@@ -79,15 +81,15 @@ func getPodSpec(server *v1alpha1.Server) (*corev1.PodSpec, bool) {
 		Name: os.Getenv("IMAGE_PULL_SECRET_NAME"),
 	})
 
-	return pod, defaultImage
+	return pod
 }
 
-func GetNewPod(server *v1alpha1.Server, namespace string) (*corev1.Pod, bool) {
+func GetNewPod(server *v1alpha1.Server, namespace string) *corev1.Pod {
 	labels := server.GetLabels()
 	if labels == nil {
 		labels = make(map[string]string)
 	}
-	spec, defaultImage := getPodSpec(server)
+	spec := getPodSpec(server)
 	labels["server"] = server.Name
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -100,5 +102,5 @@ func GetNewPod(server *v1alpha1.Server, namespace string) (*corev1.Pod, bool) {
 		},
 		Spec: *spec,
 	}
-	return pod, defaultImage
+	return pod
 }
