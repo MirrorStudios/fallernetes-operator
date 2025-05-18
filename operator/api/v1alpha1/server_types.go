@@ -25,10 +25,24 @@ import (
 type ServerSpec struct {
 	Pod v1.PodSpec `json:"pod,omitempty"`
 	// +kubebuilder:validation:Optional
-	TimeOut *metav1.Duration `json:"timeout"`
+	TimeOut *metav1.Duration `json:"timeout,omitempty"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	AllowForceDelete bool `json:"allowForceDelete,omitempty"`
+	// +kubebuilder:validation:Optional
+	SidecarSettings SidecarSettings `json:"sidecar,omitempty"`
+}
+
+type SidecarSettings struct {
+	// +kubebuilder:default=8080
+	// +kubebuilder:validation:Optional
+	Port int `json:"port"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="unfamousthomas/fallernetes-sidecar:main"
+	SidecarImage string `json:"image,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	LogDebug bool `json:"logDebug,omitempty"`
 }
 
 // ServerStatus defines the observed state of Server

@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"fmt"
+	"github.com/MirrorStudios/fallernetes/internal/controller"
 	"github.com/MirrorStudios/fallernetes/test/utils"
 	"log"
 	"os"
@@ -151,10 +152,10 @@ var _ = Describe("GameType Controller", Ordered, func() {
 			getGameTypeFinalizers := func() (string, error) {
 				cmd := exec.Command("kubectl", "get", "gametype", gameTypeName, "-n", namespace, "-o", "jsonpath={.metadata.finalizers}")
 				output, err := utils.Run(cmd)
-				return string(output), err
+				return output, err
 			}
 
-			Eventually(getGameTypeFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"gametype.falloria.com/finalizer\"]"))
+			Eventually(getGameTypeFinalizers, time.Minute, 5*time.Second).Should(Equal("[\"" + controller.TypeFinalizer + "\"]"))
 		})
 
 		It("Should create a new fleet when fleet spec changes", func() {

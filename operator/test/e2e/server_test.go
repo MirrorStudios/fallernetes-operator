@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"fmt"
+	"github.com/MirrorStudios/fallernetes/internal/controller"
 	"github.com/MirrorStudios/fallernetes/test/utils"
 	"log"
 	"os"
@@ -138,15 +139,16 @@ var _ = Describe("Server Controller", Ordered, func() {
 		})
 
 		It("Finalizers match", func() {
+			serverFinalizer := "[\"" + controller.SERVER_FINALIZER + "\"]"
 			serverFinalizers := exec.Command("kubectl", "get", "server", serverName, "-n", namespace, "-o", "jsonpath={.metadata.finalizers}")
 			output, err := utils.Run(serverFinalizers)
 			ExpectWithOffset(1, err).NotTo(HaveOccurred())
-			ExpectWithOffset(1, string(output)).Should(Equal("[\"server.falloria.com/finalizer\"]"))
+			ExpectWithOffset(1, output).Should(Equal(serverFinalizer))
 
 			podFinalizers := exec.Command("kubectl", "get", "pod", serverName+"-pod", "-n", namespace, "-o", "jsonpath={.metadata.finalizers}")
 			output, err = utils.Run(podFinalizers)
 			ExpectWithOffset(1, err).NotTo(HaveOccurred())
-			ExpectWithOffset(1, string(output)).Should(Equal("[\"server.falloria.com/finalizer\"]"))
+			ExpectWithOffset(1, output).Should(Equal(serverFinalizer))
 		})
 
 		It("Creates a pod when server is created", func() {

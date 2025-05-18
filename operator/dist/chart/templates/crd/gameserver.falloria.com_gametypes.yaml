@@ -3680,6 +3680,18 @@ spec:
                         required:
                         - containers
                         type: object
+                      sidecar:
+                        properties:
+                          image:
+                            default: unfamousthomas/fallernetes-sidecar:main
+                            type: string
+                          logDebug:
+                            default: false
+                            type: boolean
+                          port:
+                            default: 8080
+                            type: integer
+                        type: object
                       timeout:
                         type: string
                     type: object
