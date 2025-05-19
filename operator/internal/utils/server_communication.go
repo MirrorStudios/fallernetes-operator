@@ -27,7 +27,7 @@ func (p ProdDeletionChecker) IsDeletionAllowed(server *v1alpha1.Server, pod *cor
 			return true, nil
 		}
 	}
-	port := strconv.Itoa(server.Spec.SidecarSettings.Port)
+	port := strconv.Itoa(*server.Spec.SidecarSettings.Port)
 	err := RequestShutdown(pod, port)
 	if err != nil {
 		return false, err

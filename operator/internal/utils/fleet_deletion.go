@@ -140,7 +140,7 @@ func (ProdDeletionChecker) isDeleteAllowed(ctx context.Context, server *v1alpha1
 		return false, err
 	}
 
-	port := strconv.Itoa(server.Spec.SidecarSettings.Port)
+	port := strconv.Itoa(*server.Spec.SidecarSettings.Port)
 	allowed, err := IsDeleteAllowed(pod, port)
 	if err != nil {
 		return false, nil
