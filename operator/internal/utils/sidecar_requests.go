@@ -19,12 +19,12 @@ type shutdownRequest struct {
 }
 
 // IsDeleteAllowed sents a request to API/allow_delete to ask the server if it can be shutdown and deleted
-func IsDeleteAllowed(pod *v1.Pod) (bool, error) {
+func IsDeleteAllowed(pod *v1.Pod, port string) (bool, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	resp, err := client.Get(buildPodBaseAddress(pod) + "allow_delete")
+	resp, err := client.Get(buildPodBaseAddress(pod, port) + "allow_delete")
 	if err != nil {
 		return false, err
 	}
@@ -43,7 +43,7 @@ func IsDeleteAllowed(pod *v1.Pod) (bool, error) {
 }
 
 // RequestShutdown sends a request to API/shutdown to tell the server that operator has requested its shutdown
-func RequestShutdown(pod *v1.Pod) error {
+func RequestShutdown(pod *v1.Pod, port string) error {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -56,7 +56,7 @@ func RequestShutdown(pod *v1.Pod) error {
 		return err
 	}
 
-	resp, err := client.Post(buildPodBaseAddress(pod)+"shutdown", "application/json", bytes.NewBuffer(requestBody))
+	resp, err := client.Post(buildPodBaseAddress(pod, port)+"shutdown", "application/json", bytes.NewBuffer(requestBody))
 	if err != nil {
 		return err
 	}
@@ -70,6 +70,6 @@ func RequestShutdown(pod *v1.Pod) error {
 	return nil
 }
 
-func buildPodBaseAddress(pod *v1.Pod) string {
-	return fmt.Sprintf("http://%s:8080/", pod.Status.PodIP)
+func buildPodBaseAddress(pod *v1.Pod, port string) string {
+	return fmt.Sprintf("http://%s:%s/", pod.Status.PodIP, port)
 }

@@ -30,18 +30,17 @@ type ServerSpec struct {
 	// +kubebuilder:default=false
 	AllowForceDelete bool `json:"allowForceDelete,omitempty"`
 	// +kubebuilder:validation:Optional
-	SidecarSettings SidecarSettings `json:"sidecar,omitempty"`
+	SidecarSettings *SidecarSettings `json:"sidecar,omitempty"`
 }
 
 type SidecarSettings struct {
-	// +kubebuilder:default=8080
 	// +kubebuilder:validation:Optional
-	Port int `json:"port"`
+	// +kubebuilder:default=8080
+	Port *int `json:"port"`
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default="unfamousthomas/fallernetes-sidecar:main"
-	SidecarImage string `json:"image,omitempty"`
+	SidecarImage *string `json:"image,omitempty"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default=false
 	LogDebug bool `json:"logDebug,omitempty"`
 }
 

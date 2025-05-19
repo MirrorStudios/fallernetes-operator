@@ -41,17 +41,11 @@ func SetupServerWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// TODO(user): EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-
 // +kubebuilder:webhook:path=/mutate-gameserver-falloria-com-v1alpha1-server,mutating=true,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=servers,verbs=create;update,versions=v1alpha1,name=mserver-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // ServerCustomDefaulter struct is responsible for setting default values on the custom resource of the
 // Kind Server when those are created or updated.
-//
-// NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
-// as it is used only for temporary operations and does not need to be deeply copied.
 type ServerCustomDefaulter struct {
-	// TODO(user): Add more fields as needed for defaulting
 }
 
 var _ webhook.CustomDefaulter = &ServerCustomDefaulter{}
@@ -65,15 +59,31 @@ func (d *ServerCustomDefaulter) Default(ctx context.Context, obj runtime.Object)
 	}
 	serverlog.Info("Defaulting for Server", "name", server.GetName())
 
-	// TODO(user): fill in your defaulting logic.
+	defaultSidecarSettings(server)
 
 	return nil
 }
 
-// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-// NOTE: The 'path' attribute must follow a specific pattern and should not be modified directly here.
-// Modifying the path for an invalid path can cause API server errors; failing to locate the webhook.
-// +kubebuilder:webhook:path=/validate-gameserver-falloria-com-v1alpha1-server,mutating=false,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=servers,verbs=create;update,versions=v1alpha1,name=vserver-v1alpha1.kb.io,admissionReviewVersions=v1
+func defaultSidecarSettings(server *gameserverv1alpha1.Server) {
+	sidecarSettings := server.Spec.SidecarSettings
+	if sidecarSettings == nil {
+		sidecarSettings = &gameserverv1alpha1.SidecarSettings{}
+	}
+
+	if sidecarSettings.SidecarImage == nil {
+		image := "unfamousthomas/fallernetes-sidecar:main"
+		sidecarSettings.SidecarImage = &image
+	}
+
+	if sidecarSettings.Port == nil {
+		defaultPort := 8080
+		sidecarSettings.Port = &defaultPort
+	}
+
+	server.Spec.SidecarSettings = sidecarSettings
+}
+
+// +kubebuilder:webhook:path=/validate-gameserver-falloria-com-v1alpha1-server,mutating=false,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=servers,verbs=create;update;delete,versions=v1alpha1,name=vserver-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // ServerCustomValidator struct is responsible for validating the Server resource
 // when it is created, updated, or deleted.
@@ -94,8 +104,6 @@ func (v *ServerCustomValidator) ValidateCreate(ctx context.Context, obj runtime.
 	}
 	serverlog.Info("Validation for Server upon creation", "name", server.GetName())
 
-	// TODO(user): fill in your validation logic upon object creation.
-
 	return nil, nil
 }
 
@@ -107,8 +115,6 @@ func (v *ServerCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newO
 	}
 	serverlog.Info("Validation for Server upon update", "name", server.GetName())
 
-	// TODO(user): fill in your validation logic upon object update.
-
 	return nil, nil
 }
 
@@ -119,8 +125,6 @@ func (v *ServerCustomValidator) ValidateDelete(ctx context.Context, obj runtime.
 		return nil, fmt.Errorf("expected a Server object but got %T", obj)
 	}
 	serverlog.Info("Validation for Server upon deletion", "name", server.GetName())
-
-	// TODO(user): fill in your validation logic upon object deletion.
 
 	return nil, nil
 }

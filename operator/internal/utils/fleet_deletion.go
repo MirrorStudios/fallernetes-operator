@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strconv"
 )
 
 type FleetDeletionChecker interface {
@@ -139,7 +140,8 @@ func (ProdDeletionChecker) isDeleteAllowed(ctx context.Context, server *v1alpha1
 		return false, err
 	}
 
-	allowed, err := IsDeleteAllowed(pod)
+	port := strconv.Itoa(*server.Spec.SidecarSettings.Port)
+	allowed, err := IsDeleteAllowed(pod, port)
 	if err != nil {
 		return false, nil
 	}
