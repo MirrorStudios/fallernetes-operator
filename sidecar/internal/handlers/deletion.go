@@ -35,6 +35,9 @@ func SetDeleteAllowed(a *app.App) func(http.ResponseWriter, *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		if a.DeleteAllowed != request.Allowed {
+			a.Logger.Info("Allowed will be updated", "current allowed", a.DeleteAllowed, "request allowed", request.Allowed)
+		}
 		a.DeleteAllowed = request.Allowed
 		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(request)
