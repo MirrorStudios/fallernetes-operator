@@ -35,6 +35,9 @@ func SetShutdownRequested(a *app.App) func(http.ResponseWriter, *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		if a.ShutdownRequested != request.Shutdown {
+			a.Logger.Info("Shutdown will be updated", "shutdown allowed", a.ShutdownRequested, "request allowed", request.Shutdown)
+		}
 		a.ShutdownRequested = request.Shutdown
 		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(request)

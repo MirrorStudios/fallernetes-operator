@@ -27,10 +27,11 @@ type ServerSpec struct {
 	TimeOut          *metav1.Duration `json:"timeout"`
 	AllowForceDelete bool             `json:"allowForceDelete,omitempty"`
 	SidecarSettings  *SidecarSettings `json:"sidecar,omitempty"`
+	GameInfo         *GameInfo        `json:"gameInfo,omitempty"`
 }
 
 type SidecarSettings struct {
-	Port         int    `json:"port,omitempty"`
+	Port         *int   `json:"port,omitempty"`
 	SidecarImage string `json:"image,omitempty"`
 	LogDebug     bool   `json:"logDebug,omitempty"`
 }
@@ -40,6 +41,10 @@ type Server struct {
 	Kind       Kind       `json:"kind"`
 	Metadata   Metadata   `json:"metadata"`
 	Spec       ServerSpec `json:"spec"`
+}
+
+type GameInfo struct {
+	Capacity *int `json:"capacity,omitempty"`
 }
 
 // CreateServer is used to create a new Server resource on the cluster, matching the Server struct

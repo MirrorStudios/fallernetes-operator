@@ -31,6 +31,13 @@ type ServerSpec struct {
 	AllowForceDelete bool `json:"allowForceDelete,omitempty"`
 	// +kubebuilder:validation:Optional
 	SidecarSettings *SidecarSettings `json:"sidecar,omitempty"`
+	// +kubebuilder:validation:Optional
+	GameInfo *GameInfo `json:"gameInfo,omitempty"`
+}
+
+type GameInfo struct {
+	// +kubebuilder:validation:Optional
+	Capacity *int `json:"capacity,omitempty"`
 }
 
 type SidecarSettings struct {

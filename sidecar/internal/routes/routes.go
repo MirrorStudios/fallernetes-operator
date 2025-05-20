@@ -16,7 +16,9 @@ func SetupRoutes(a *app.App) {
 	a.Mux.HandleFunc("GET /shutdown", handlers.IsShutdownRequested(a))
 	a.Mux.HandleFunc("POST /shutdown", handlers.SetShutdownRequested(a))
 	a.Mux.HandleFunc("/health", handlers.Health(a))
-	err := http.ListenAndServe(":"+strconv.Itoa(a.Port), a.Mux)
+	loggingHandler := app.LogRoute(a, a.Mux)
+	a.Logger.Info("Starting http server", "port", a.Port)
+	err := http.ListenAndServe(":"+strconv.Itoa(a.Port), loggingHandler)
 	if err != nil {
 		log.Fatalf("Error starting server: %v", err)
 	}

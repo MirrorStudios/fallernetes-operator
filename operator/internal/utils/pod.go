@@ -34,7 +34,7 @@ func getPodSpec(server *v1alpha1.Server) *corev1.PodSpec {
 				Value: portStr,
 			},
 			{
-				Name:  "LOG_DEBUG",
+				Name:  "DEBUG",
 				Value: debugStr,
 			},
 		},
@@ -81,6 +81,13 @@ func getPodSpec(server *v1alpha1.Server) *corev1.PodSpec {
 				},
 			},
 		})
+		if server.Spec.GameInfo != nil && server.Spec.GameInfo.Capacity != nil {
+			capacity := *server.Spec.GameInfo.Capacity
+			container.Env = append(container.Env, corev1.EnvVar{
+				Name:  "SERVER_CAPACITY",
+				Value: strconv.Itoa(capacity),
+			})
+		}
 	}
 
 	pod.ImagePullSecrets = append(pod.ImagePullSecrets, corev1.LocalObjectReference{

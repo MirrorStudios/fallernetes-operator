@@ -1,6 +1,9 @@
 package app
 
-import "net/http"
+import (
+	"log/slog"
+	"net/http"
+)
 
 // App struct is where most of the state of the sidecar is stored, along with the used http Mux.
 type App struct {
@@ -8,4 +11,5 @@ type App struct {
 	DeleteAllowed     bool
 	ShutdownRequested bool
 	Port              int
+	Logger            *slog.Logger
 }
