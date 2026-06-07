@@ -28,9 +28,9 @@ jobs:
               - '.github/workflows/test-service.yml'
 
 
-  service-unit-test:
+  sidecar-unit-test:
     runs-on: ubuntu-latest
-    name: Run service unit tests
+    name: Run sidecar unit tests
     needs:
       - changes
     steps:
@@ -46,12 +46,13 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: service/go.mod
+          go-version-file: operator/go.mod
 
       - name: Run tests
         if: needs.changes.outputs.run-tests == 'true'
         working-directory: service
         run:  |
           go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
+
 
 
