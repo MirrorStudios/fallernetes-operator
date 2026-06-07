@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/app"
-	"log"
+	"log/slog"
 	"net/http"
+
+	"github.com/MirrorStudios/fallernetes-sidecar/internal/app"
 )
 
 type ShutdownRequest struct {
@@ -17,7 +18,7 @@ func IsShutdownRequested(a *app.App) func(http.ResponseWriter, *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(ShutdownRequest{Shutdown: a.ShutdownRequested})
 		if err != nil {
-			log.Printf("Error encoding response: %v", err)
+			slog.Error("Error encoding response", "error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -31,18 +32,18 @@ func SetShutdownRequested(a *app.App) func(http.ResponseWriter, *http.Request) {
 		var request ShutdownRequest
 		err := json.NewDecoder(r.Body).Decode(&request)
 		if err != nil {
-			log.Printf("Error decoding request: %v", err)
+			slog.Error("Error decoding request", "error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		if a.ShutdownRequested != request.Shutdown {
-			a.Logger.Info("Shutdown will be updated", "shutdown allowed", a.ShutdownRequested, "request allowed", request.Shutdown)
+			slog.Info("Shutdown will be updated", "shutdown allowed", a.ShutdownRequested, "request allowed", request.Shutdown)
 		}
 		a.ShutdownRequested = request.Shutdown
 		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(request)
 		if err != nil {
-			log.Printf("Error encoding response: %v", err)
+			slog.Error("Error encoding response", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
