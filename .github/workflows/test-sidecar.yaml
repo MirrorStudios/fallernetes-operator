@@ -3,7 +3,7 @@ name: Sidecar Unit Tests
 on:
   pull_request:
     paths:
-      - 'internal/**'
+      - 'sidecar/**'
       - '.github/workflows/test-sidecar.yaml'
 
 permissions:
