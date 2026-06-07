@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,17 +19,16 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/MirrorStudios/fallernetes/internal/utils"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const FLEET_FINALIZER = "fleets.falloria.com/finalizer"
@@ -104,6 +103,7 @@ func (r *FleetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&gameserverv1alpha1.Fleet{}).
 		Owns(&gameserverv1alpha1.Server{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
+		Named("fleet").
 		Complete(r)
 }
 

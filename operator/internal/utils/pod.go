@@ -1,11 +1,12 @@
 package utils
 
 import (
-	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"os"
 	"strconv"
+
+	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func addContainer(spec *corev1.PodSpec, container corev1.Container) *corev1.PodSpec {

@@ -1,0 +1,7 @@
+## Append samples of your project ##
+resources:
+- gameserver_v1alpha1_server.yaml
+- gameserver_v1alpha1_fleet.yaml
+- gameserver_v1alpha1_gametype.yaml
+- gameserver_v1alpha1_gametypeautoscaler.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

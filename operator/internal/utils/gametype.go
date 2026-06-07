@@ -2,7 +2,8 @@ package utils
 
 import (
 	"context"
-	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
+
+	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"

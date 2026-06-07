@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

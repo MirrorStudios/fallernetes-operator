@@ -2,14 +2,12 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
+cliVersion: 4.14.0
 domain: falloria.com
 layout:
 - go.kubebuilder.io/v4
-plugins:
-  autoupdate.kubebuilder.io/v1-alpha: {}
-  helm.kubebuilder.io/v1-alpha: {}
-projectName: fallernetes
-repo: github.com/MirrorStudios/fallernetes
+projectName: operator
+repo: github.com/MirrorStudios/fallernetes-operator
 resources:
 - api:
     crdVersion: v1
@@ -17,21 +15,8 @@ resources:
   controller: true
   domain: falloria.com
   group: gameserver
-  kind: Server
-  path: github.com/MirrorStudios/fallernetes/api/v1alpha1
-  version: v1alpha1
-  webhooks:
-    defaulting: true
-    validation: true
-    webhookVersion: v1
-- api:
-    crdVersion: v1
-    namespaced: true
-  controller: true
-  domain: falloria.com
-  group: gameserver
   kind: Fleet
-  path: github.com/MirrorStudios/fallernetes/api/v1alpha1
+  path: github.com/MirrorStudios/fallernetes-operator/api/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -43,8 +28,8 @@ resources:
   controller: true
   domain: falloria.com
   group: gameserver
-  kind: GameType
-  path: github.com/MirrorStudios/fallernetes/api/v1alpha1
+  kind: Server
+  path: github.com/MirrorStudios/fallernetes-operator/api/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true
@@ -57,7 +42,20 @@ resources:
   domain: falloria.com
   group: gameserver
   kind: GameTypeAutoscaler
-  path: github.com/MirrorStudios/fallernetes/api/v1alpha1
+  path: github.com/MirrorStudios/fallernetes-operator/api/v1alpha1
+  version: v1alpha1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: falloria.com
+  group: gameserver
+  kind: GameType
+  path: github.com/MirrorStudios/fallernetes-operator/api/v1alpha1
   version: v1alpha1
   webhooks:
     defaulting: true

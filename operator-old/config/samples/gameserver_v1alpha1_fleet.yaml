@@ -1,0 +1,9 @@
+apiVersion: gameserver.falloria.com/v1alpha1
+kind: Fleet
+metadata:
+  labels:
+    app.kubernetes.io/name: fallernetes
+    app.kubernetes.io/managed-by: kustomize
+  name: fleet-sample
+spec:
+  # TODO(user): Add fields here

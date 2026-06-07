@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,20 +19,22 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/MirrorStudios/fallernetes/internal/utils"
+
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	log "sigs.k8s.io/controller-runtime/pkg/log"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
+
+const TypeFinalizer = "gametype.falloria.com/finalizer"
 
 // GameTypeReconciler reconciles a GameType object
 type GameTypeReconciler struct {
@@ -40,8 +42,6 @@ type GameTypeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
-
-const TypeFinalizer = "gametype.falloria.com/finalizer"
 
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypes/status,verbs=get;update;patch
@@ -186,14 +186,6 @@ func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *games
 	return ctrl.Result{}, nil, false
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *GameTypeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&gameserverv1alpha1.GameType{}).
-		Owns(&gameserverv1alpha1.Fleet{}).
-		Complete(r)
-}
-
 // handleDeletion is used to trigger deletion of the GameType
 // It first checks if we have the finalizer, then we can imagine we are still removing the fleets
 // Once all fleets are removed, we remove the finalizer
@@ -270,4 +262,13 @@ func (r *GameTypeReconciler) handleGametypeStatus(ctx context.Context, gametype 
 		}
 	}
 	return nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *GameTypeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&gameserverv1alpha1.GameType{}).
+		Named("gametype").
+		Owns(&gameserverv1alpha1.Fleet{}).
+		Complete(r)
 }
