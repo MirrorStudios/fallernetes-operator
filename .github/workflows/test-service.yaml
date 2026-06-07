@@ -1,10 +1,10 @@
-name: Sidecar Unit Tests
+name: Service Unit Tests
 
 on:
   pull_request:
     paths:
       - 'service/**'
-      - '.github/workflows/test-sidecar.yaml'
+      - '.github/workflows/test-service.yaml'
 
 permissions:
   contents: read
@@ -28,9 +28,9 @@ jobs:
               - '.github/workflows/test-service.yml'
 
 
-  sidecar-unit-test:
+  service-unit-test:
     runs-on: ubuntu-latest
-    name: Run sidecar unit tests
+    name: Run service unit tests
     needs:
       - changes
     steps:
