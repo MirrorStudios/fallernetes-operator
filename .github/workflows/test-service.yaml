@@ -1,10 +1,10 @@
-name: Sidecar Unit Tests
+name: Service Unit Tests
 
 on:
   pull_request:
     paths:
-      - 'internal/**'
-      - '.github/workflows/test-sidecar.yaml'
+      - 'service/**'
+      - '.github/workflows/test-service.yaml'
 
 permissions:
   contents: read
@@ -25,7 +25,8 @@ jobs:
           filters: |
             run-tests:
               - 'service/internal/**'
-              - '.github/workflows/test-service.yml'
+              - 'service/test/**'
+              - '.github/workflows/test-service.yaml'
 
 
   service-unit-test:
@@ -53,5 +54,6 @@ jobs:
         working-directory: service
         run:  |
           go test $(go list ./... | grep -v /e2e) -coverprofile cover.out
+
 
 

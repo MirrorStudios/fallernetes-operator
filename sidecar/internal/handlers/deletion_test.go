@@ -40,7 +40,7 @@ func TestSetDeleteAllowed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Error encoding request body: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodGet, "/allow_delete", bytes.NewReader(requestBody))
+	req := httptest.NewRequest(http.MethodPost, "/allow_delete", bytes.NewReader(requestBody))
 	rec := httptest.NewRecorder()
 
 	handler := http.HandlerFunc(SetDeleteAllowed(a))

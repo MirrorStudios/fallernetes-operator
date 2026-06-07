@@ -3,7 +3,7 @@ name: Sidecar Unit Tests
 on:
   pull_request:
     paths:
-      - 'internal/**'
+      - 'sidecar/**'
       - '.github/workflows/test-sidecar.yaml'
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
           filters: |
             run-tests:
               - 'sidecar/internal/**'
-              - '.github/workflows/test-sidecar.yml'
+              - '.github/workflows/test-sidecar.yaml'
 
 
   sidecar-unit-test:
@@ -46,7 +46,7 @@ jobs:
         if: needs.changes.outputs.run-tests == 'true'
         uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
         with:
-          go-version-file: operator/go.mod
+          go-version-file: sidecar/go.mod
 
       - name: Run tests
         if: needs.changes.outputs.run-tests == 'true'

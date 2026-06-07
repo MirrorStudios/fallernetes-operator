@@ -21,8 +21,8 @@ jobs:
         with:
           filters: |
             run-tests:
-              - 'internal/**'
-              - 'api/**'
+              - 'operator/internal/**'
+              - 'operator/api/**'
               - '.github/workflows/unit-test.yml'
 
   unit-test:

@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"encoding/json"
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/app"
-	"log"
+	"log/slog"
 	"net/http"
+
+	"github.com/MirrorStudios/fallernetes-sidecar/internal/app"
 )
 
 type DeleteRequest struct {
@@ -17,7 +18,7 @@ func IsDeleteAllowed(a *app.App) func(http.ResponseWriter, *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		err := json.NewEncoder(w).Encode(DeleteRequest{Allowed: a.DeleteAllowed})
 		if err != nil {
-			log.Printf("Error encoding response: %v", err)
+			slog.Error("Error encoding response", "error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -31,18 +32,18 @@ func SetDeleteAllowed(a *app.App) func(http.ResponseWriter, *http.Request) {
 		var request DeleteRequest
 		err := json.NewDecoder(r.Body).Decode(&request)
 		if err != nil {
-			log.Printf("Error decoding request: %v", err)
+			slog.Error("Error decoding request", "error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		if a.DeleteAllowed != request.Allowed {
-			a.Logger.Info("Allowed will be updated", "current allowed", a.DeleteAllowed, "request allowed", request.Allowed)
+			slog.Info("Allowed will be updated", "current allowed", a.DeleteAllowed, "request allowed", request.Allowed)
 		}
 		a.DeleteAllowed = request.Allowed
 		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(request)
 		if err != nil {
-			log.Printf("Error encoding response: %v", err)
+			slog.Error("Error encoding response", "error", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}

@@ -1,0 +1,6 @@
+package: gen
+generate:
+  - types
+  - strict-server
+  - std-http-server
+output: operator.gen.go
