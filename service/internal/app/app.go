@@ -1,38 +1,41 @@
 package app
 
 import (
+	"log"
+	"net/http"
+
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"log"
-	"net/http"
+
+	kubeadapter "github.com/MirrorStudios/fallernetes-service/internal/adapters/kube"
+	"github.com/MirrorStudios/fallernetes-service/internal/service"
 )
 
 type App struct {
-	Mux           *http.ServeMux
-	DynamicClient *dynamic.DynamicClient
-	ClientSet     *kubernetes.Clientset
+	Mux     *http.ServeMux
+	Service *service.OperatorService
 }
 
-// CreateApp is where the app struct is created and related sub-variables are initialized
 func CreateApp() *App {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		log.Fatal("Could not create config: ", err)
 	}
-	client, err := dynamic.NewForConfig(config)
+	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		log.Fatal("Could not create client: ", err)
+		log.Fatal("Could not create dynamic client: ", err)
 	}
-	clientset, err := kubernetes.NewForConfig(config)
+	clientSet, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		log.Fatal("Could not create clientset: ", err)
 	}
 
-	a := App{
-		Mux:           http.NewServeMux(),
-		DynamicClient: client,
-		ClientSet:     clientset,
+	adapter := kubeadapter.NewKubeAdapter(dynamicClient, clientSet)
+	svc := service.NewOperatorService(adapter, adapter, adapter, adapter, adapter)
+
+	return &App{
+		Mux:     http.NewServeMux(),
+		Service: svc,
 	}
-	return &a
 }
