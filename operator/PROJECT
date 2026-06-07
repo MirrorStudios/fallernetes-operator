@@ -6,6 +6,11 @@ cliVersion: 4.14.0
 domain: falloria.com
 layout:
 - go.kubebuilder.io/v4
+plugins:
+  autoupdate.kubebuilder.io/v1-alpha: {}
+  helm.kubebuilder.io/v2-alpha:
+    manifests: dist/install.yaml
+    output: dist
 projectName: operator
 repo: github.com/MirrorStudios/fallernetes-operator
 resources:

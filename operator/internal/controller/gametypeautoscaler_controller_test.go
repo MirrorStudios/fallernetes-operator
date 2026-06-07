@@ -1,84 +1,63 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
 
 var _ = Describe("GameTypeAutoscaler Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const ns = "default"
+	const autoscalerName = "autoscaler-test"
 
-		ctx := context.Background()
+	webhookPath := "/scale"
+	interval := metav1.Duration{Duration: 30 * time.Second}
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
-		}
-		gametypeautoscaler := &gameserverv1alpha1.GameTypeAutoscaler{}
-
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind GameTypeAutoscaler")
-			err := k8sClient.Get(ctx, typeNamespacedName, gametypeautoscaler)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &gameserverv1alpha1.GameTypeAutoscaler{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
+	validAutoscaler := func() *gameserverv1alpha1.GameTypeAutoscaler {
+		return &gameserverv1alpha1.GameTypeAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{Name: autoscalerName, Namespace: ns},
+			Spec: gameserverv1alpha1.GameTypeAutoscalerSpec{
+				GameTypeName: "my-gametype",
+				AutoscalePolicy: gameserverv1alpha1.AutoscalePolicy{
+					Type: gameserverv1alpha1.Webhook,
+					WebhookAutoscalerSpec: gameserverv1alpha1.WebhookAutoscalerSpec{
+						Path: &webhookPath,
 					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
+				},
+				Sync: gameserverv1alpha1.Sync{
+					Type: gameserverv1alpha1.FixedInterval,
+					Time: &interval,
+				},
+			},
+		}
+	}
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &gameserverv1alpha1.GameTypeAutoscaler{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
+	BeforeEach(func() {
+		Expect(k8sClient.Create(context.Background(), validAutoscaler())).To(Succeed())
+	})
 
-			By("Cleanup the specific resource instance GameTypeAutoscaler")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &GameTypeAutoscalerReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
-			}
+	AfterEach(func() {
+		resource := &gameserverv1alpha1.GameTypeAutoscaler{}
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: autoscalerName, Namespace: ns}, resource); err == nil {
+			_ = k8sClient.Delete(context.Background(), resource)
+		}
+	})
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+	It("reconciles without error (stub controller)", func() {
+		reconciler := &GameTypeAutoscalerReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		}
+		_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
 		})
+		Expect(err).NotTo(HaveOccurred())
 	})
 })

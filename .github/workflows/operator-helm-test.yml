@@ -21,10 +21,10 @@ jobs:
         with:
           filters: |
             run-tests:
-              - 'internal/**'
-              - 'api/**'
-              - '.github/workflows/helm-test.yml'
-              - 'dist/**'
+              - 'operator/internal/**'
+              - 'operator/api/**'
+              - '.github/workflows/operator-helm-test.yml'
+              - 'operator/dist/**'
 
   test-e2e-helm:
     name: Run Helm Chart Tests

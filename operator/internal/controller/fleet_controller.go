@@ -59,9 +59,9 @@ func (r *FleetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	// Handle resource deletion
 	if fleet.DeletionTimestamp != nil || !fleet.GetDeletionTimestamp().IsZero() {
 		if err := r.handleDeletion(ctx, fleet); err != nil {
-			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to handle fleet deletion: %w", err)
+			return ctrl.Result{}, fmt.Errorf("failed to handle fleet deletion: %w", err)
 		}
-		return ctrl.Result{Requeue: true}, nil // Return after so we do not accidentally scale again
+		return ctrl.Result{}, nil
 	}
 
 	// Handle finalizer addition
@@ -69,32 +69,32 @@ func (r *FleetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		controllerutil.AddFinalizer(fleet, FLEET_FINALIZER)
 		if err := r.Update(ctx, fleet); err != nil {
 			r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetUpdateFailed, "Fleet finalizer update failed: %s", err)
-			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to add finalizer to fleet: %w", err)
+			return ctrl.Result{}, fmt.Errorf("failed to add finalizer to fleet: %w", err)
 		}
 		r.emitEvent(fleet, corev1.EventTypeNormal, utils.ReasonFleetInitialized, "Fleet finalizers added")
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 	}
 
-	servers, err := r.getServers(ctx, fleet)
+	servers, err := utils.GetServersForFleet(ctx, r.Client, fleet)
 	if err != nil {
-		return ctrl.Result{Requeue: true}, err
+		return ctrl.Result{}, err
 	}
 	fleet.Status.CurrentReplicas = int32(len(servers.Items))
 	if fleet.Spec.Scaling.Replicas != fleet.Status.CurrentReplicas {
 		if err := r.scaleServerCount(ctx, fleet, req.Namespace); err != nil {
 			return ctrl.Result{}, err
 		}
-		servers, err := r.getServers(ctx, fleet)
+		servers, err = utils.GetServersForFleet(ctx, r.Client, fleet)
 		if err != nil {
-			return ctrl.Result{Requeue: true}, err
+			return ctrl.Result{}, err
 		}
 		fleet.Status.CurrentReplicas = int32(len(servers.Items))
 	}
 
 	if err := r.Status().Update(ctx, fleet); err != nil {
-		return ctrl.Result{Requeue: true}, fmt.Errorf("failed to update Fleet status resource: %w", err)
+		return ctrl.Result{}, fmt.Errorf("failed to update Fleet status resource: %w", err)
 	}
-	return ctrl.Result{Requeue: true}, err
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -125,7 +125,7 @@ func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserve
 	}
 	//Scale down
 	if fleet.Status.CurrentReplicas > fleet.Spec.Scaling.Replicas {
-		servers, err := r.getServers(ctx, fleet)
+		servers, err := utils.GetServersForFleet(ctx, r.Client, fleet)
 		if err != nil {
 			return err
 		}
@@ -142,24 +142,12 @@ func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserve
 	return nil
 }
 
-// getServers is used by the FleetReconciler to get all the servers associated with a fleet
-// Internally it just matches the fleet label in the same namespace
-func (r *FleetReconciler) getServers(ctx context.Context, fleet *gameserverv1alpha1.Fleet) (*gameserverv1alpha1.ServerList, error) {
-	serverList := &gameserverv1alpha1.ServerList{}
-	labelSelector := client.MatchingLabels{"fleet": fleet.Name}
-	if err := r.List(ctx, serverList, client.InNamespace(fleet.Namespace), labelSelector); err != nil {
-		return nil, err
-	}
-	return serverList, nil
-}
-
 // handleDeletion is used by the FleetReconciler to handle deletion.
 // Internally, it first getts all the associated servers, then triggers them for deletion.
 // It requeues the reconcilation, until the amount of servers is 0.
 // Once it is 0, it removes the finalizer.
 func (r *FleetReconciler) handleDeletion(ctx context.Context, fleet *gameserverv1alpha1.Fleet) error {
-	//Gets the fleet-connected servers
-	servers, err := r.getServers(ctx, fleet)
+	servers, err := utils.GetServersForFleet(ctx, r.Client, fleet)
 	if err != nil {
 		return err
 	}
@@ -169,7 +157,7 @@ func (r *FleetReconciler) handleDeletion(ctx context.Context, fleet *gameserverv
 		}
 	}
 	//Get them again to check if any were deleted already
-	servers, err = r.getServers(ctx, fleet)
+	servers, err = utils.GetServersForFleet(ctx, r.Client, fleet)
 	if err != nil {
 		return err
 	}

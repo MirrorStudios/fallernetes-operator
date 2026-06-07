@@ -1,0 +1,91 @@
+{{- if .Values.webhook.enable }}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    {{- if .Values.certManager.enable }}
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "operator.resourceName" (dict "suffix" "serving-cert" "context" $) }}
+    {{- end }}
+  name: {{ include "operator.resourceName" (dict "suffix" "mutating-webhook-configuration" "context" $) }}
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ include "operator.resourceName" (dict "suffix" "webhook-service" "context" $) }}
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-gameserver-falloria-com-v1alpha1-fleet
+  failurePolicy: Fail
+  name: mfleet-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - gameserver.falloria.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - fleets
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ include "operator.resourceName" (dict "suffix" "webhook-service" "context" $) }}
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-gameserver-falloria-com-v1alpha1-gametype
+  failurePolicy: Fail
+  name: mgametype-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - gameserver.falloria.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - gametypes
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ include "operator.resourceName" (dict "suffix" "webhook-service" "context" $) }}
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-gameserver-falloria-com-v1alpha1-gametypeautoscaler
+  failurePolicy: Fail
+  name: mgametypeautoscaler-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - gameserver.falloria.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - gametypeautoscalers
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: {{ include "operator.resourceName" (dict "suffix" "webhook-service" "context" $) }}
+      namespace: {{ .Release.Namespace }}
+      path: /mutate-gameserver-falloria-com-v1alpha1-server
+  failurePolicy: Fail
+  name: mserver-v1alpha1.kb.io
+  rules:
+  - apiGroups:
+    - gameserver.falloria.com
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - servers
+  sideEffects: None
+{{- end }}

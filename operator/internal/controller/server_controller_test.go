@@ -1,19 +1,3 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
@@ -21,64 +5,206 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
 
 var _ = Describe("Server Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	const ns = "default"
 
-		ctx := context.Background()
+	newServerReconciler := func(deletion FakeDeletion) *ServerReconciler {
+		return &ServerReconciler{
+			Client:          k8sClient,
+			Scheme:          k8sClient.Scheme(),
+			Recorder:        NewFakeRecorder(),
+			DeletionAllowed: deletion,
+		}
+	}
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+	reconcileServer := func(name string, deletion FakeDeletion) error {
+		_, err := newServerReconciler(deletion).Reconcile(context.Background(), reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: name, Namespace: ns},
+		})
+		return err
+	}
+
+	getPod := func(serverName string) (*corev1.Pod, error) {
+		pod := &corev1.Pod{}
+		err := k8sClient.Get(context.Background(), types.NamespacedName{
+			Name:      serverName + "-pod",
+			Namespace: ns,
+		}, pod)
+		return pod, err
+	}
+
+	cleanupServer := func(name string) {
+		pod := &corev1.Pod{}
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name + "-pod", Namespace: ns}, pod); err == nil {
+			clearFinalizers(pod)
+			_ = k8sClient.Delete(context.Background(), pod)
 		}
 		server := &gameserverv1alpha1.Server{}
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: ns}, server); err == nil {
+			clearFinalizers(server)
+			_ = k8sClient.Delete(context.Background(), server)
+		}
+	}
+
+	allowed := FakeDeletion{Allow: true}
+	blocked := FakeDeletion{Allow: false}
+
+	Context("Finalizer management", func() {
+		const serverName = "server-fin-test"
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Server")
-			err := k8sClient.Get(ctx, typeNamespacedName, server)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &gameserverv1alpha1.Server{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
 		})
 
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &gameserverv1alpha1.Server{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("adds the server finalizer on first reconcile", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(server.Finalizers).To(ContainElement(ServerFinalizer))
+		})
+	})
+
+	Context("Pod lifecycle", func() {
+		const serverName = "server-pod-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // add finalizer
+		})
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("creates a pod named <server>-pod", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			pod, err := getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pod.Name).To(Equal(serverName + "-pod"))
+		})
+
+		It("sets the server label on the pod", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			pod, err := getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pod.Labels).To(HaveKeyWithValue("server", serverName))
+		})
+
+		It("adds the finalizer to the pod on a subsequent reconcile", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // create pod
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // add pod finalizer
+
+			pod, err := getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pod.Finalizers).To(ContainElement(ServerFinalizer))
+		})
+
+		It("sets the sidecar container on the pod", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			pod, err := getPod(serverName)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance Server")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &ServerReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
+			containerNames := make([]string, len(pod.Spec.Containers))
+			for i, c := range pod.Spec.Containers {
+				containerNames[i] = c.Name
 			}
+			Expect(containerNames).To(ContainElement("fallernetes-sidecar"))
+		})
+	})
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
+	Context("Deletion flow", func() {
+		const serverName = "server-del-test"
+
+		setupServer := func() {
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // finalizer
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // create pod
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // pod finalizer
+		}
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("keeps the server alive when deletion is not allowed by sidecar", func() {
+			setupServer()
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), server)).To(Succeed())
+
+			// Reconcile: deletion blocked
+			Expect(reconcileServer(serverName, blocked)).To(Succeed())
+
+			// Server still present (finalizer not removed)
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(server.Finalizers).To(ContainElement(ServerFinalizer))
+		})
+
+		It("removes the server when deletion is allowed by sidecar", func() {
+			setupServer()
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), server)).To(Succeed())
+
+			// handleDeletion succeeds: pod deleted, server finalizer removed
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			// Server finalizer should be stripped so GC can remove it
+			updated := &gameserverv1alpha1.Server{}
+			if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, updated); err == nil {
+				Expect(updated.Finalizers).NotTo(ContainElement(ServerFinalizer))
+			}
+		})
+
+		It("deletes the pod when deletion is allowed", func() {
+			setupServer()
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), server)).To(Succeed())
+
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			// Pod should be gone (or at least have no finalizer blocking deletion)
+			pod, err := getPod(serverName)
+			if err == nil {
+				Expect(pod.Finalizers).NotTo(ContainElement(ServerFinalizer))
+			}
+		})
+	})
+
+	Context("Error paths", func() {
+		const serverName = "server-err-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // finalizer
+		})
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("returns an error when pod creation fails", func() {
+			failReconciler := &ServerReconciler{
+				Client:          FakeFailClient{Client: k8sClient, FailCreate: true},
+				Scheme:          k8sClient.Scheme(),
+				Recorder:        NewFakeRecorder(),
+				DeletionAllowed: allowed,
+			}
+			_, err := failReconciler.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: serverName, Namespace: ns},
 			})
-			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+			Expect(err).To(HaveOccurred())
 		})
 	})
 })

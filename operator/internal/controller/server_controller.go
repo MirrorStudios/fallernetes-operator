@@ -86,15 +86,15 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err.Error() == "server deletion not allowed" && !r.ErrorOnNotAllowed {
 				return ctrl.Result{Requeue: true}, nil
 			}
-			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to handle server deletion: %s", err)
+			return ctrl.Result{}, fmt.Errorf("failed to handle server deletion: %s", err)
 		}
 		controllerutil.RemoveFinalizer(server, ServerFinalizer)
 		if err := r.Update(ctx, server); err != nil {
 			r.emitEvent(server, corev1.EventTypeWarning, utils.ReasonServerDeletionAllowed, "Failed to update server object")
-			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to remove finalizer: %w", err)
+			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 		}
 		r.emitEvent(server, corev1.EventTypeNormal, utils.ReasonServerDeletionAllowed, "Finalizer removed")
-		return ctrl.Result{Requeue: true}, nil // Return after finalizer removal
+		return ctrl.Result{}, nil
 	}
 
 	// Ensure Pod exists
@@ -106,8 +106,7 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("failed to ensure Pod exists for Server: %w", err)
 	}
 	if !podExists {
-		// If a Pod was created, exit early to requeue the reconciliation
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 	}
 
 	// Ensure pod has the finalizers
