@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,19 +38,27 @@ type GameTypeStatus struct {
 
 // GameType is the Schema for the gametypes API
 type GameType struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
 
-	Spec   GameTypeSpec   `json:"spec,omitempty"`
-	Status GameTypeStatus `json:"status,omitempty"`
+	// metadata is a standard object metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitzero"`
+
+	// spec defines the desired state of GameType
+	// +required
+	Spec GameTypeSpec `json:"spec"`
+
+	// status defines the observed state of GameType
+	// +optional
+	Status GameTypeStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// GameTypeList contains a list of GameType.
+// GameTypeList contains a list of GameType
 type GameTypeList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []GameType `json:"items"`
 }
 

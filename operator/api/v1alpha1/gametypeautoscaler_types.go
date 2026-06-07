@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ type Service struct {
 	Port      int    `json:"port"`
 }
 
-// The following sync structs handle when to sync
+// Sync handles when to sync
 type Sync struct {
 	// +kubebuilder:validation:Enum=fixedinterval
 	Type SyncStrategy     `json:"type"`
@@ -85,19 +85,27 @@ type GameTypeAutoscalerStatus struct {
 
 // GameTypeAutoscaler is the Schema for the gametypeautoscalers API.
 type GameTypeAutoscaler struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
 
-	Spec   GameTypeAutoscalerSpec   `json:"spec,omitempty"`
-	Status GameTypeAutoscalerStatus `json:"status,omitempty"`
+	// metadata is a standard object metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitzero"`
+
+	// spec defines the desired state of GameTypeAutoscaler
+	// +required
+	Spec GameTypeAutoscalerSpec `json:"spec"`
+
+	// status defines the observed state of GameTypeAutoscaler
+	// +optional
+	Status GameTypeAutoscalerStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// GameTypeAutoscalerList contains a list of GameTypeAutoscaler.
+// GameTypeAutoscalerList contains a list of GameTypeAutoscaler
 type GameTypeAutoscalerList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []GameTypeAutoscaler `json:"items"`
 }
 

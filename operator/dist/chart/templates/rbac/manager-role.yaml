@@ -1,0 +1,54 @@
+apiVersion: rbac.authorization.k8s.io/v1
+{{- if .Values.rbac.namespaced }}
+kind: Role
+{{- else }}
+kind: ClusterRole
+{{- end }}
+metadata:
+{{- if .Values.rbac.namespaced }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
+  name: {{ include "operator.resourceName" (dict "suffix" "manager-role" "context" $) }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - gameserver.falloria.com
+  resources:
+  - fleets
+  - gametypeautoscalers
+  - gametypes
+  - servers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gameserver.falloria.com
+  resources:
+  - fleets/finalizers
+  - gametypeautoscalers/finalizers
+  - gametypes/finalizers
+  - servers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - gameserver.falloria.com
+  resources:
+  - fleets/status
+  - gametypeautoscalers/status
+  - gametypes/status
+  - servers/status
+  verbs:
+  - get
+  - patch
+  - update

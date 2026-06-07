@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,9 @@ limitations under the License.
 package v1alpha1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // FleetSpec defines the desired state of Fleet
@@ -63,24 +64,30 @@ type FleetStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Desired Replicas",type=integer,JSONPath=`.spec.scaling.replicas`
-// +kubebuilder:printcolumn:name="Current Replicas",type=integer,JSONPath=`.status.current_replicas`
 
 // Fleet is the Schema for the fleets API
 type Fleet struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
 
-	Spec   FleetSpec   `json:"spec,omitempty"`
-	Status FleetStatus `json:"status,omitempty"`
+	// metadata is a standard object metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitzero"`
+
+	// spec defines the desired state of Fleet
+	// +required
+	Spec FleetSpec `json:"spec"`
+
+	// status defines the observed state of Fleet
+	// +optional
+	Status FleetStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// FleetList contains a list of Fleet.
+// FleetList contains a list of Fleet
 type FleetList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []Fleet `json:"items"`
 }
 

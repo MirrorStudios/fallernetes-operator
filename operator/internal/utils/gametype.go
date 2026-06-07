@@ -2,7 +2,8 @@ package utils
 
 import (
 	"context"
-	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
+
+	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 	"github.com/go-logr/logr"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -21,6 +22,28 @@ func GetFleetsForType(ctx context.Context, c client.Client, gametype *v1alpha1.G
 	}
 
 	return fleetList, nil
+}
+
+// GetOldestFleet returns the fleet with the earliest CreationTimestamp, or nil for an empty slice.
+func GetOldestFleet(fleets []v1alpha1.Fleet) *v1alpha1.Fleet {
+	var oldest *v1alpha1.Fleet
+	for i := range fleets {
+		if oldest == nil || fleets[i].CreationTimestamp.Before(&oldest.CreationTimestamp) {
+			oldest = &fleets[i]
+		}
+	}
+	return oldest
+}
+
+// GetNewestFleet returns the fleet with the latest CreationTimestamp, or nil for an empty slice.
+func GetNewestFleet(fleets []v1alpha1.Fleet) *v1alpha1.Fleet {
+	var newest *v1alpha1.Fleet
+	for i := range fleets {
+		if newest == nil || fleets[i].CreationTimestamp.After(newest.CreationTimestamp.Time) {
+			newest = &fleets[i]
+		}
+	}
+	return newest
 }
 
 func GetFleetObjectForType(gametype *v1alpha1.GameType) *v1alpha1.Fleet {

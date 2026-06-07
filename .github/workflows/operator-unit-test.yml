@@ -23,7 +23,7 @@ jobs:
             run-tests:
               - 'operator/internal/**'
               - 'operator/api/**'
-              - '.github/workflows/unit-test.yml'
+              - '.github/workflows/operator-unit-test.yml'
 
   unit-test:
     name: Unit Test

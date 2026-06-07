@@ -1,12 +1,12 @@
 # Adds namespace to all resources.
-namespace: fallernetes-system
+namespace: operator-system
 
 # Value of this field is prepended to the
 # names of all resources, e.g. a deployment named
 # "wordpress" becomes "alices-wordpress".
 # Note that it should also match with the prefix (text before '-') of the namespace
 # field above.
-namePrefix: fallernetes-
+namePrefix: operator-
 
 # Labels to add to all resources and selectors.
 #labels:
@@ -57,65 +57,65 @@ patches:
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER' prefix.
 # Uncomment the following replacements to add the cert-manager CA injection annotations
 replacements:
- - source: # Uncomment the following block to enable certificates for metrics
-     kind: Service
-     version: v1
-     name: controller-manager-metrics-service
-     fieldPath: metadata.name
-   targets:
-     - select:
-         kind: Certificate
-         group: cert-manager.io
-         version: v1
-         name: metrics-certs
-       fieldPaths:
-         - spec.dnsNames.0
-         - spec.dnsNames.1
-       options:
-         delimiter: '.'
-         index: 0
-         create: true
-     - select: # Uncomment the following to set the Service name for TLS config in Prometheus ServiceMonitor
-         kind: ServiceMonitor
-         group: monitoring.coreos.com
-         version: v1
-         name: controller-manager-metrics-monitor
-       fieldPaths:
-         - spec.endpoints.0.tlsConfig.serverName
-       options:
-         delimiter: '.'
-         index: 0
-         create: true
+# - source: # Uncomment the following block to enable certificates for metrics
+#     kind: Service
+#     version: v1
+#     name: controller-manager-metrics-service
+#     fieldPath: metadata.name
+#   targets:
+#     - select:
+#         kind: Certificate
+#         group: cert-manager.io
+#         version: v1
+#         name: metrics-certs
+#       fieldPaths:
+#         - spec.dnsNames.0
+#         - spec.dnsNames.1
+#       options:
+#         delimiter: '.'
+#         index: 0
+#         create: true
+#     - select: # Uncomment the following to set the Service name for TLS config in Prometheus ServiceMonitor
+#         kind: ServiceMonitor
+#         group: monitoring.coreos.com
+#         version: v1
+#         name: controller-manager-metrics-monitor
+#       fieldPaths:
+#         - spec.endpoints.0.tlsConfig.serverName
+#       options:
+#         delimiter: '.'
+#         index: 0
+#         create: true
 
- - source:
-     kind: Service
-     version: v1
-     name: controller-manager-metrics-service
-     fieldPath: metadata.namespace
-   targets:
-     - select:
-         kind: Certificate
-         group: cert-manager.io
-         version: v1
-         name: metrics-certs
-       fieldPaths:
-         - spec.dnsNames.0
-         - spec.dnsNames.1
-       options:
-         delimiter: '.'
-         index: 1
-         create: true
-     - select: # Uncomment the following to set the Service namespace for TLS in Prometheus ServiceMonitor
-         kind: ServiceMonitor
-         group: monitoring.coreos.com
-         version: v1
-         name: controller-manager-metrics-monitor
-       fieldPaths:
-         - spec.endpoints.0.tlsConfig.serverName
-       options:
-         delimiter: '.'
-         index: 1
-         create: true
+# - source:
+#     kind: Service
+#     version: v1
+#     name: controller-manager-metrics-service
+#     fieldPath: metadata.namespace
+#   targets:
+#     - select:
+#         kind: Certificate
+#         group: cert-manager.io
+#         version: v1
+#         name: metrics-certs
+#       fieldPaths:
+#         - spec.dnsNames.0
+#         - spec.dnsNames.1
+#       options:
+#         delimiter: '.'
+#         index: 1
+#         create: true
+#     - select: # Uncomment the following to set the Service namespace for TLS in Prometheus ServiceMonitor
+#         kind: ServiceMonitor
+#         group: monitoring.coreos.com
+#         version: v1
+#         name: controller-manager-metrics-monitor
+#       fieldPaths:
+#         - spec.endpoints.0.tlsConfig.serverName
+#       options:
+#         delimiter: '.'
+#         index: 1
+#         create: true
 
  - source: # Uncomment the following block if you have any webhook
      kind: Service
@@ -215,7 +215,7 @@ replacements:
          delimiter: '/'
          index: 1
          create: true
-#
+
 # - source: # Uncomment the following block if you have a ConversionWebhook (--conversion)
 #     kind: Certificate
 #     group: cert-manager.io

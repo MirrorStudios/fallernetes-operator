@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,17 +18,14 @@ package v1alpha1
 
 import (
 	"context"
-	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
 
 // nolint:unused
@@ -37,7 +34,7 @@ var fleetlog = logf.Log.WithName("fleet-resource")
 
 // SetupFleetWebhookWithManager registers the webhook for Fleet in the manager.
 func SetupFleetWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).For(&gameserverv1alpha1.Fleet{}).
+	return ctrl.NewWebhookManagedBy(mgr, &gameserverv1alpha1.Fleet{}).
 		WithValidator(&FleetCustomValidator{}).
 		WithDefaulter(&FleetCustomDefaulter{}).
 		Complete()
@@ -51,15 +48,8 @@ type FleetCustomDefaulter struct {
 	// TODO(user): Add more fields as needed for defaulting
 }
 
-var _ webhook.CustomDefaulter = &FleetCustomDefaulter{}
-
 // Default implements webhook.CustomDefaulter so a webhook will be registered for the Kind Fleet.
-func (d *FleetCustomDefaulter) Default(ctx context.Context, obj runtime.Object) error {
-	fleet, ok := obj.(*gameserverv1alpha1.Fleet)
-
-	if !ok {
-		return fmt.Errorf("expected an Fleet object but got %T", obj)
-	}
+func (d *FleetCustomDefaulter) Default(_ context.Context, fleet *gameserverv1alpha1.Fleet) error {
 	fleetlog.Info("Defaulting for Fleet", "name", fleet.GetName())
 	if fleet.Spec.ServerSpec.TimeOut == nil {
 		fleet.Spec.ServerSpec.TimeOut = &metav1.Duration{Duration: time.Minute * 40}
@@ -67,7 +57,9 @@ func (d *FleetCustomDefaulter) Default(ctx context.Context, obj runtime.Object) 
 	return nil
 }
 
-// +kubebuilder:webhook:path=/validate-gameserver-falloria-com-v1alpha1-fleet,mutating=false,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=fleets,verbs=create;update;delete,versions=v1alpha1,name=vfleet-v1alpha1.kb.io,admissionReviewVersions=v1
+// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
+// NOTE: If you want to customise the 'path', use the flags '--defaulting-path' or '--validation-path'.
+// +kubebuilder:webhook:path=/validate-gameserver-falloria-com-v1alpha1-fleet,mutating=false,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=fleets,verbs=create;update,versions=v1alpha1,name=vfleet-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // FleetCustomValidator struct is responsible for validating the Fleet resource
 // when it is created, updated, or deleted.
@@ -78,32 +70,23 @@ type FleetCustomValidator struct {
 	// TODO(user): Add more fields as needed for validation
 }
 
-var _ webhook.CustomValidator = &FleetCustomValidator{}
-
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
-func (v *FleetCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	_, ok := obj.(*gameserverv1alpha1.Fleet)
-	if !ok {
-		return nil, fmt.Errorf("expected a Fleet object but got %T", obj)
-	}
+func (v *FleetCustomValidator) ValidateCreate(_ context.Context, obj *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
+	fleetlog.Info("Validation for Fleet upon creation", "name", obj.GetName())
 
 	return nil, nil
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
-func (v *FleetCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	_, ok := newObj.(*gameserverv1alpha1.Fleet)
-	if !ok {
-		return nil, fmt.Errorf("expected a Fleet object for the newObj but got %T", newObj)
-	}
+func (v *FleetCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
+	fleetlog.Info("Validation for Fleet upon update", "name", newObj.GetName())
+
 	return nil, nil
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
-func (v *FleetCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	_, ok := obj.(*gameserverv1alpha1.Fleet)
-	if !ok {
-		return nil, fmt.Errorf("expected a Fleet object but got %T", obj)
-	}
+func (v *FleetCustomValidator) ValidateDelete(_ context.Context, obj *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
+	fleetlog.Info("Validation for Fleet upon deletion", "name", obj.GetName())
+
 	return nil, nil
 }

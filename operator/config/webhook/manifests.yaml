@@ -107,7 +107,6 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
-    - DELETE
     resources:
     - fleets
   sideEffects: None
@@ -168,7 +167,6 @@ webhooks:
     operations:
     - CREATE
     - UPDATE
-    - DELETE
     resources:
     - servers
   sideEffects: None

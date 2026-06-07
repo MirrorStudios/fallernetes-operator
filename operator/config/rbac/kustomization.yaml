@@ -20,18 +20,18 @@ resources:
 - metrics_reader_role.yaml
 # For each CRD, "Admin", "Editor" and "Viewer" roles are scaffolded by
 # default, aiding admins in cluster management. Those roles are
-# not used by the {{ .ProjectName }} itself. You can comment the following lines
+# not used by the operator itself. You can comment the following lines
 # if you do not want those helpers be installed with your Project.
-- gametypeautoscaler_admin_role.yaml
-- gametypeautoscaler_editor_role.yaml
-- gametypeautoscaler_viewer_role.yaml
 - gametype_admin_role.yaml
 - gametype_editor_role.yaml
 - gametype_viewer_role.yaml
-- fleet_admin_role.yaml
-- fleet_editor_role.yaml
-- fleet_viewer_role.yaml
+- gametypeautoscaler_admin_role.yaml
+- gametypeautoscaler_editor_role.yaml
+- gametypeautoscaler_viewer_role.yaml
 - server_admin_role.yaml
 - server_editor_role.yaml
 - server_viewer_role.yaml
+- fleet_admin_role.yaml
+- fleet_editor_role.yaml
+- fleet_viewer_role.yaml
 

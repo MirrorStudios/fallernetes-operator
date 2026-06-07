@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,28 +20,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/MirrorStudios/fallernetes/internal/utils"
+
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
 
-const SERVER_FINALIZER = "server.falloria.com/finalizer"
+const ServerFinalizer = "server.falloria.com/finalizer"
 
 // ServerReconciler reconciles a Server object
 type ServerReconciler struct {
 	client.Client
-	ErrorOnNotAllowed bool
 	Scheme            *runtime.Scheme
+	ErrorOnNotAllowed bool
 	Recorder          record.EventRecorder
 	DeletionAllowed   utils.Deletion
 }
@@ -49,11 +50,15 @@ type ServerReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers/finalizers,verbs=update
-// +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
-// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
+// the Server object against the actual cluster state, and then
+// perform operations to make the cluster state reflect the state specified by
+// the user.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
 func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	// Fetch the Server resource
 	server := &gameserverv1alpha1.Server{}
@@ -65,8 +70,8 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// Handle finalizer addition
-	if server.DeletionTimestamp == nil && !controllerutil.ContainsFinalizer(server, SERVER_FINALIZER) {
-		controllerutil.AddFinalizer(server, SERVER_FINALIZER)
+	if server.DeletionTimestamp == nil && !controllerutil.ContainsFinalizer(server, ServerFinalizer) {
+		controllerutil.AddFinalizer(server, ServerFinalizer)
 		if err := r.Update(ctx, server); err != nil {
 			r.emitEventf(server, corev1.EventTypeWarning, utils.ReasonServerUpdateFAiled, "failed to update server: %s", err)
 			return ctrl.Result{}, fmt.Errorf("failed to update server for finalizer: %s", err)
@@ -81,15 +86,15 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			if err.Error() == "server deletion not allowed" && !r.ErrorOnNotAllowed {
 				return ctrl.Result{Requeue: true}, nil
 			}
-			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to handle server deletion: %s", err)
+			return ctrl.Result{}, fmt.Errorf("failed to handle server deletion: %s", err)
 		}
-		controllerutil.RemoveFinalizer(server, SERVER_FINALIZER)
+		controllerutil.RemoveFinalizer(server, ServerFinalizer)
 		if err := r.Update(ctx, server); err != nil {
 			r.emitEvent(server, corev1.EventTypeWarning, utils.ReasonServerDeletionAllowed, "Failed to update server object")
-			return ctrl.Result{Requeue: true}, fmt.Errorf("failed to remove finalizer: %w", err)
+			return ctrl.Result{}, fmt.Errorf("failed to remove finalizer: %w", err)
 		}
 		r.emitEvent(server, corev1.EventTypeNormal, utils.ReasonServerDeletionAllowed, "Finalizer removed")
-		return ctrl.Result{Requeue: true}, nil // Return after finalizer removal
+		return ctrl.Result{}, nil
 	}
 
 	// Ensure Pod exists
@@ -101,8 +106,7 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, fmt.Errorf("failed to ensure Pod exists for Server: %w", err)
 	}
 	if !podExists {
-		// If a Pod was created, exit early to requeue the reconciliation
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 	}
 
 	// Ensure pod has the finalizers
@@ -122,6 +126,7 @@ func (r *ServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gameserverv1alpha1.Server{}).
 		Owns(&corev1.Pod{}).
+		Named("server").
 		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Complete(r)
 }
@@ -188,8 +193,8 @@ func (r *ServerReconciler) handleDeletion(ctx context.Context, server *gameserve
 		return errors.New("server deletion not allowed")
 	}
 
-	if pod != nil && controllerutil.ContainsFinalizer(pod, SERVER_FINALIZER) {
-		controllerutil.RemoveFinalizer(pod, SERVER_FINALIZER)
+	if pod != nil && controllerutil.ContainsFinalizer(pod, ServerFinalizer) {
+		controllerutil.RemoveFinalizer(pod, ServerFinalizer)
 		r.emitEvent(server, corev1.EventTypeNormal, utils.ReasonServerDeletionAllowed, "Pod finalizer removed")
 		r.emitEvent(pod, corev1.EventTypeNormal, utils.ReasonServerDeletionAllowed, "Pod finalizer removed")
 		if err := r.Update(ctx, pod); err != nil {
@@ -222,10 +227,10 @@ func (r *ServerReconciler) ensurePodFinalizer(ctx context.Context, server *games
 	if err := r.Get(ctx, namespacedName, pod); err != nil {
 		return false, err
 	}
-	if controllerutil.ContainsFinalizer(pod, SERVER_FINALIZER) {
+	if controllerutil.ContainsFinalizer(pod, ServerFinalizer) {
 		return false, nil
 	}
-	controllerutil.AddFinalizer(pod, SERVER_FINALIZER)
+	controllerutil.AddFinalizer(pod, ServerFinalizer)
 	r.emitEvent(server, corev1.EventTypeNormal, utils.ReasonServerInitialized, "Pod finalizer added")
 	r.emitEvent(pod, corev1.EventTypeNormal, utils.ReasonServerInitialized, "Pod finalizer added")
 	if err := r.Update(ctx, pod); err != nil {

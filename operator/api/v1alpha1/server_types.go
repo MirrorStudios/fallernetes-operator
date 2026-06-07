@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,19 +61,27 @@ type ServerStatus struct {
 
 // Server is the Schema for the servers API
 type Server struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.TypeMeta `json:",inline"`
 
-	Spec   ServerSpec   `json:"spec,omitempty"`
-	Status ServerStatus `json:"status,omitempty"`
+	// metadata is a standard object metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitzero"`
+
+	// spec defines the desired state of Server
+	// +required
+	Spec ServerSpec `json:"spec"`
+
+	// status defines the observed state of Server
+	// +optional
+	Status ServerStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// ServerList contains a list of Server.
+// ServerList contains a list of Server
 type ServerList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []Server `json:"items"`
 }
 

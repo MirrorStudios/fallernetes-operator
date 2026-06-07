@@ -2,7 +2,7 @@ apiVersion: gameserver.falloria.com/v1alpha1
 kind: GameType
 metadata:
   labels:
-    app.kubernetes.io/name: fallernetes
+    app.kubernetes.io/name: operator
     app.kubernetes.io/managed-by: kustomize
   name: gametype-sample
 spec:

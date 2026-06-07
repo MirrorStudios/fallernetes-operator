@@ -1,0 +1,108 @@
+{{- if .Values.crd.enable }}
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    {{- if .Values.crd.keep }}
+    "helm.sh/resource-policy": keep
+    {{- end }}
+    controller-gen.kubebuilder.io/version: v0.20.1
+  name: gametypeautoscalers.gameserver.falloria.com
+spec:
+  group: gameserver.falloria.com
+  names:
+    kind: GameTypeAutoscaler
+    listKind: GameTypeAutoscalerList
+    plural: gametypeautoscalers
+    singular: gametypeautoscaler
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: GameTypeAutoscaler is the Schema for the gametypeautoscalers
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec defines the desired state of GameTypeAutoscaler
+            properties:
+              gameTypeName:
+                type: string
+              policy:
+                properties:
+                  type:
+                    enum:
+                    - webhook
+                    type: string
+                  webhook:
+                    properties:
+                      path:
+                        type: string
+                      service:
+                        properties:
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                          port:
+                            type: integer
+                        required:
+                        - name
+                        - namespace
+                        - port
+                        type: object
+                      url:
+                        type: string
+                    required:
+                    - path
+                    type: object
+                required:
+                - type
+                - webhook
+                type: object
+              sync:
+                description: Sync handles when to sync
+                properties:
+                  interval:
+                    type: string
+                  type:
+                    enum:
+                    - fixedinterval
+                    type: string
+                required:
+                - interval
+                - type
+                type: object
+            required:
+            - gameTypeName
+            - policy
+            - sync
+            type: object
+          status:
+            description: status defines the observed state of GameTypeAutoscaler
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+{{- end }}

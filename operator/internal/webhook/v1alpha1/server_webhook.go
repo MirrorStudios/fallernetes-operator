@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,15 +18,12 @@ package v1alpha1
 
 import (
 	"context"
-	"fmt"
 
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
 
 // nolint:unused
@@ -35,7 +32,7 @@ var serverlog = logf.Log.WithName("server-resource")
 
 // SetupServerWebhookWithManager registers the webhook for Server in the manager.
 func SetupServerWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).For(&gameserverv1alpha1.Server{}).
+	return ctrl.NewWebhookManagedBy(mgr, &gameserverv1alpha1.Server{}).
 		WithValidator(&ServerCustomValidator{}).
 		WithDefaulter(&ServerCustomDefaulter{}).
 		Complete()
@@ -46,24 +43,17 @@ func SetupServerWebhookWithManager(mgr ctrl.Manager) error {
 // ServerCustomDefaulter struct is responsible for setting default values on the custom resource of the
 // Kind Server when those are created or updated.
 type ServerCustomDefaulter struct {
+	// TODO(user): Add more fields as needed for defaulting
 }
 
-var _ webhook.CustomDefaulter = &ServerCustomDefaulter{}
-
 // Default implements webhook.CustomDefaulter so a webhook will be registered for the Kind Server.
-func (d *ServerCustomDefaulter) Default(ctx context.Context, obj runtime.Object) error {
-	server, ok := obj.(*gameserverv1alpha1.Server)
-
-	if !ok {
-		return fmt.Errorf("expected an Server object but got %T", obj)
-	}
+func (d *ServerCustomDefaulter) Default(_ context.Context, server *gameserverv1alpha1.Server) error {
 	serverlog.Info("Defaulting for Server", "name", server.GetName())
 
 	defaultSidecarSettings(server)
 
 	return nil
 }
-
 func defaultSidecarSettings(server *gameserverv1alpha1.Server) {
 	sidecarSettings := server.Spec.SidecarSettings
 	if sidecarSettings == nil {
@@ -83,7 +73,7 @@ func defaultSidecarSettings(server *gameserverv1alpha1.Server) {
 	server.Spec.SidecarSettings = sidecarSettings
 }
 
-// +kubebuilder:webhook:path=/validate-gameserver-falloria-com-v1alpha1-server,mutating=false,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=servers,verbs=create;update;delete,versions=v1alpha1,name=vserver-v1alpha1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-gameserver-falloria-com-v1alpha1-server,mutating=false,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=servers,verbs=create;update,versions=v1alpha1,name=vserver-v1alpha1.kb.io,admissionReviewVersions=v1
 
 // ServerCustomValidator struct is responsible for validating the Server resource
 // when it is created, updated, or deleted.
@@ -94,37 +84,24 @@ type ServerCustomValidator struct {
 	// TODO(user): Add more fields as needed for validation
 }
 
-var _ webhook.CustomValidator = &ServerCustomValidator{}
-
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Server.
-func (v *ServerCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	server, ok := obj.(*gameserverv1alpha1.Server)
-	if !ok {
-		return nil, fmt.Errorf("expected a Server object but got %T", obj)
-	}
+func (v *ServerCustomValidator) ValidateCreate(_ context.Context, server *gameserverv1alpha1.Server) (admission.Warnings, error) {
+
 	serverlog.Info("Validation for Server upon creation", "name", server.GetName())
 
 	return nil, nil
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Server.
-func (v *ServerCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	server, ok := newObj.(*gameserverv1alpha1.Server)
-	if !ok {
-		return nil, fmt.Errorf("expected a Server object for the newObj but got %T", newObj)
-	}
-	serverlog.Info("Validation for Server upon update", "name", server.GetName())
+func (v *ServerCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj *gameserverv1alpha1.Server) (admission.Warnings, error) {
+	serverlog.Info("Validation for Server upon update", "name", newObj.GetName())
 
 	return nil, nil
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Server.
-func (v *ServerCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	server, ok := obj.(*gameserverv1alpha1.Server)
-	if !ok {
-		return nil, fmt.Errorf("expected a Server object but got %T", obj)
-	}
-	serverlog.Info("Validation for Server upon deletion", "name", server.GetName())
+func (v *ServerCustomValidator) ValidateDelete(_ context.Context, obj *gameserverv1alpha1.Server) (admission.Warnings, error) {
+	serverlog.Info("Validation for Server upon deletion", "name", obj.GetName())
 
 	return nil, nil
 }

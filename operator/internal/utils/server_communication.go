@@ -1,10 +1,11 @@
 package utils
 
 import (
-	"github.com/MirrorStudios/fallernetes/api/v1alpha1"
-	corev1 "k8s.io/api/core/v1"
 	"strconv"
 	"time"
+
+	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type Deletion interface {

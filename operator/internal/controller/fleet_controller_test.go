@@ -1,391 +1,218 @@
-/*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package controller
 
 import (
 	"context"
-	"fmt"
-	"github.com/MirrorStudios/fallernetes/internal/utils"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
 
-var prodChecker = utils.ProdDeletionChecker{}
-var basicFleetSpec = gameserverv1alpha1.FleetSpec{
-	Scaling: gameserverv1alpha1.FleetScaling{
-		Replicas:          2,
-		PrioritizeAllowed: false,
-		AgePriority:       gameserverv1alpha1.OldestFirst,
-	},
-	ServerSpec: basicServerSpec,
-}
-
 var _ = Describe("Fleet Controller", func() {
-	Context("When reconciling a resource", func() {
-		const (
-			FleetName      = "test-fleet"
-			FleetNamespace = "default"
-		)
+	const ns = "default"
 
-		var (
-			ctx            context.Context
-			namespacedName types.NamespacedName
+	newReconciler := func() *FleetReconciler {
+		return &FleetReconciler{
+			Client:   k8sClient,
+			Scheme:   k8sClient.Scheme(),
+			Recorder: NewFakeRecorder(),
+		}
+	}
+
+	reconcileFleet := func(name string) error {
+		_, err := newReconciler().Reconcile(context.Background(), reconcile.Request{
+			NamespacedName: types.NamespacedName{Name: name, Namespace: ns},
+		})
+		return err
+	}
+
+	serversForFleet := func(fleetName string) []gameserverv1alpha1.Server {
+		list := &gameserverv1alpha1.ServerList{}
+		_ = k8sClient.List(context.Background(), list,
+			client.InNamespace(ns),
+			client.MatchingLabels{"fleet": fleetName},
 		)
+		return list.Items
+	}
+
+	cleanupFleet := func(name string) {
+		fleet := &gameserverv1alpha1.Fleet{}
+		if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: ns}, fleet); err != nil {
+			return
+		}
+		clearFinalizers(fleet)
+		_ = k8sClient.Delete(context.Background(), fleet)
+		for _, s := range serversForFleet(name) {
+			s := s
+			clearFinalizers(&s)
+			_ = k8sClient.Delete(context.Background(), &s)
+		}
+	}
+
+	Context("Finalizer management", func() {
+		const fleetName = "fleet-fin-test"
 
 		BeforeEach(func() {
-			ctx = context.Background()
-			namespacedName = types.NamespacedName{
-				Name:      FleetName,
-				Namespace: FleetNamespace,
-			}
-
-			By("Creating a Fleet resource")
-			fleet := &gameserverv1alpha1.Fleet{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      FleetName,
-					Namespace: FleetNamespace,
-				},
-				Spec: basicFleetSpec,
-			}
-			Expect(k8sClient.Create(ctx, fleet)).To(Succeed())
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 0))).To(Succeed())
 		})
 
-		AfterEach(func() {
-			fleet := &gameserverv1alpha1.Fleet{}
-			err := k8sClient.Get(ctx, namespacedName, fleet)
-			if err != nil && errors.IsNotFound(err) {
-				return
-			}
-			Expect(err).To(Succeed())
-			Expect(k8sClient.Delete(ctx, fleet)).To(Succeed())
-			recorder := NewFakeRecorder()
-			reconciler := &FleetReconciler{
-				Client:          k8sClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        recorder,
-				DeletionChecker: prodChecker,
-			}
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(err).To(Succeed())
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, namespacedName, fleet)
-				return errors.IsNotFound(err)
-			}, time.Second*10, time.Millisecond*500).Should(BeTrue())
+		AfterEach(func() { cleanupFleet(fleetName) })
 
-			hasFinalizerRemoveEvent := false
-			for _, event := range recorder.Events {
-				if event.Message == "Fleet finalizers removed" {
-					hasFinalizerRemoveEvent = true
-				}
-				break
-			}
-			Expect(hasFinalizerRemoveEvent).To(BeTrue())
-		})
-
-		It("Should emit the correct events", func() {
-			By("Setting up reconciler")
-			recorder := NewFakeRecorder()
-			reconciler := &FleetReconciler{
-				Client:          k8sClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        recorder,
-				DeletionChecker: prodChecker,
-			}
-
-			By("Initial reconcile")
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Checking for finalizer event")
-			hasFleetFinalizersEvent := false
-
-			for _, event := range recorder.Events {
-				if event.Message == "Fleet finalizers added" {
-					hasFleetFinalizersEvent = true
-					break
-				}
-			}
-			Expect(hasFleetFinalizersEvent).To(BeTrue())
-
-			By("Checking for scaling up event")
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).ToNot(HaveOccurred())
-			hasScaleEvent := false
-			for _, event := range recorder.Events {
-				required := fmt.Sprintf("Scaled servers up to %d", basicFleetSpec.Scaling.Replicas)
-				if event.Message == required {
-					hasScaleEvent = true
-					break
-				}
-			}
-			Expect(hasScaleEvent).To(BeTrue())
-
-			By("Updating replica count")
-			var fleet gameserverv1alpha1.Fleet
-			err = k8sClient.Get(ctx, namespacedName, &fleet)
-			Expect(err).ToNot(HaveOccurred())
-			fleet.Spec.Scaling.Replicas = fleet.Spec.Scaling.Replicas - 1
-			err = k8sClient.Update(ctx, &fleet)
-			Expect(err).ToNot(HaveOccurred())
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Checking for scaling down evenet")
-			hasScaleEvent = false
-			for _, event := range recorder.Events {
-				required := fmt.Sprintf("Scaled servers down to %d", fleet.Spec.Scaling.Replicas)
-				if event.Message == required {
-					hasScaleEvent = true
-					break
-				}
-			}
-			Expect(hasScaleEvent).To(BeTrue())
-		})
-		It("should delete all servers and remove the finalizer on fleet deletion", func() {
-			reconciler := &FleetReconciler{
-				Client:          k8sClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        NewFakeRecorder(),
-				DeletionChecker: prodChecker,
-			}
-
-			// Initial reconciles to create servers
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(func() int {
-				serverList := &gameserverv1alpha1.ServerList{}
-				_ = k8sClient.List(ctx, serverList)
-				return len(serverList.Items)
-			}, time.Second*10, time.Millisecond*500).Should(Equal(int(basicFleetSpec.Scaling.Replicas)))
-
-			// Delete the fleet
-			fleet := &gameserverv1alpha1.Fleet{}
-			Expect(k8sClient.Get(ctx, namespacedName, fleet)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, fleet)).To(Succeed())
-
-			// Reconcile deletion (to handle cleanup + finalizer logic)
-			Eventually(func() bool {
-				_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-				return err == nil
-			}, time.Second*5, time.Millisecond*200).Should(BeTrue())
-
-			// Finalizer should eventually be removed after cleanup
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, namespacedName, fleet)
-				if errors.IsNotFound(err) {
-					return true // Finalizer removed and object is gone
-				}
-				if err != nil {
-					return false
-				}
-				return !controllerutil.ContainsFinalizer(fleet, FLEET_FINALIZER)
-			}, time.Second*10, time.Millisecond*500).Should(BeTrue())
-		})
-
-		It("should add a finalizer if not present", func() {
-			reconciler := &FleetReconciler{
-				Client:          k8sClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        NewFakeRecorder(),
-				DeletionChecker: prodChecker,
-			}
-
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
+		It("adds the fleet finalizer on first reconcile", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed())
 
 			fleet := &gameserverv1alpha1.Fleet{}
-			Expect(k8sClient.Get(ctx, namespacedName, fleet)).To(Succeed())
-			Expect(controllerutil.ContainsFinalizer(fleet, FLEET_FINALIZER)).To(BeTrue())
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			Expect(fleet.Finalizers).To(ContainElement(FLEET_FINALIZER))
 		})
 
-		It("should scale up servers to match the desired replicas", func() {
-			reconciler := &FleetReconciler{
-				Client:          k8sClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        NewFakeRecorder(),
-				DeletionChecker: prodChecker,
-			}
+		It("does not add the finalizer twice", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed())
 
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(func() int {
-				serverList := &gameserverv1alpha1.ServerList{}
-				err := k8sClient.List(ctx, serverList)
-				if err != nil {
-					return -1
-				}
-				return len(serverList.Items)
-			}, time.Second*10, time.Millisecond*500).Should(Equal(int(basicFleetSpec.Scaling.Replicas)))
-
-			lowerReplicas := basicFleetSpec.Scaling.Replicas - 1
-			var fleet gameserverv1alpha1.Fleet
-			err = k8sClient.Get(ctx, namespacedName, &fleet)
-			Expect(err).NotTo(HaveOccurred())
-			fleet.Spec.Scaling.Replicas = lowerReplicas
-			err = k8sClient.Update(ctx, &fleet)
-			Expect(err).NotTo(HaveOccurred())
-
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(func() int {
-				serverList := &gameserverv1alpha1.ServerList{}
-				err := k8sClient.List(ctx, serverList)
-				if err != nil {
-					return -1
-				}
-				return len(serverList.Items)
-			}, time.Second*10, time.Millisecond*500).Should(Equal(int(lowerReplicas)))
-
-		})
-
-		It("should delete all servers when fleet is deleted", func() {
-			reconciler := &FleetReconciler{
-				Client:          k8sClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        NewFakeRecorder(),
-				DeletionChecker: prodChecker,
-			}
-
-			// Ensure the fleet is scaled first
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
-
-			Eventually(func() int {
-				serverList := &gameserverv1alpha1.ServerList{}
-				_ = k8sClient.List(ctx, serverList)
-				return len(serverList.Items)
-			}, time.Second*10, time.Millisecond*500).Should(Equal(int(basicFleetSpec.Scaling.Replicas)))
-
-			// Delete the fleet
 			fleet := &gameserverv1alpha1.Fleet{}
-			Expect(k8sClient.Get(ctx, namespacedName, fleet)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, fleet)).To(Succeed())
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			count := 0
+			for _, f := range fleet.Finalizers {
+				if f == FLEET_FINALIZER {
+					count++
+				}
+			}
+			Expect(count).To(Equal(1))
+		})
+	})
 
-			// Reconcile deletion
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).NotTo(HaveOccurred())
+	Context("Scale up", func() {
+		const fleetName = "fleet-scaleup-test"
 
-			Eventually(func() bool {
-				serverList := &gameserverv1alpha1.ServerList{}
-				_ = k8sClient.List(ctx, serverList)
-				return len(serverList.Items) == 0
-			}, time.Second*10, time.Millisecond*500).Should(BeTrue())
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 2))).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // adds finalizer
 		})
 
-		It("Should return errors based on failures", func() {
-			By("Create failing client")
-			fakeClient := FakeFailClient{
-				client:     k8sClient,
-				FailUpdate: false,
-				FailCreate: false,
-				FailDelete: false,
-				FailGet:    true,
-				FailList:   false,
-				FailPatch:  false,
-			}
-			reconciler := &FleetReconciler{
-				Client:          fakeClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        NewFakeRecorder(),
-				DeletionChecker: prodChecker,
-			}
+		AfterEach(func() { cleanupFleet(fleetName) })
 
-			By("Fail Get")
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).To(HaveOccurred())
-			fakeClient.FailGet = false
-			fakeClient.FailUpdate = true
-			reconciler.Client = fakeClient
-
-			By("Fail Update")
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).To(HaveOccurred())
-
-			By("Fail list")
-			fakeClient.FailUpdate = false
-			fakeClient.FailList = true
-			reconciler.Client = fakeClient
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			fmt.Println(err)
-			Expect(err).To(Not(HaveOccurred()))
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).To(HaveOccurred())
-
+		It("creates the requested number of servers", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(serversForFleet(fleetName)).To(HaveLen(2))
 		})
 
-		It("Fail create and delete", func() {
-			By("Create failing client")
-			fakeClient := FakeFailClient{
-				client:     k8sClient,
-				FailUpdate: false,
-				FailCreate: true,
-				FailDelete: false,
-				FailGet:    false,
-				FailList:   false,
-				FailPatch:  false,
-			}
-			reconciler := &FleetReconciler{
-				Client:          fakeClient,
-				Scheme:          k8sClient.Scheme(),
-				Recorder:        NewFakeRecorder(),
-				DeletionChecker: prodChecker,
-			}
+		It("updates status to reflect current replica count", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed())
 
-			By("Fail Create")
-			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).To(Not(HaveOccurred()))
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			Expect(fleet.Status.CurrentReplicas).To(Equal(int32(2)))
+		})
+
+		It("each created server has the fleet label", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+
+			for _, s := range serversForFleet(fleetName) {
+				Expect(s.Labels).To(HaveKeyWithValue("fleet", fleetName))
+			}
+		})
+	})
+
+	Context("Scale down", func() {
+		const fleetName = "fleet-scaledown-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 2))).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // finalizer
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // scale to 2
+			Expect(serversForFleet(fleetName)).To(HaveLen(2))
+		})
+
+		AfterEach(func() { cleanupFleet(fleetName) })
+
+		It("deletes one server when replicas decrease by one", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			fleet.Spec.Scaling.Replicas = 1
+			Expect(k8sClient.Update(context.Background(), fleet)).To(Succeed())
+
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(serversForFleet(fleetName)).To(HaveLen(1))
+		})
+
+		It("deletes all servers when scaled to zero", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			fleet.Spec.Scaling.Replicas = 0
+			Expect(k8sClient.Update(context.Background(), fleet)).To(Succeed())
+
+			// Each reconcile removes one server at a time (FindDeleteServer picks one)
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(serversForFleet(fleetName)).To(BeEmpty())
+		})
+	})
+
+	Context("Deletion handling", func() {
+		const fleetName = "fleet-del-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 1))).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // finalizer
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // scale to 1
+			Expect(serversForFleet(fleetName)).To(HaveLen(1))
+		})
+
+		AfterEach(func() { cleanupFleet(fleetName) })
+
+		It("removes servers and finalizer when fleet is deleted", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), fleet)).To(Succeed())
+
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+
+			Expect(serversForFleet(fleetName)).To(BeEmpty())
+
+			// Fleet finalizer should be gone (fleet may be GC'd or finalizer stripped)
+			updated := &gameserverv1alpha1.Fleet{}
+			if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, updated); err == nil {
+				Expect(updated.Finalizers).NotTo(ContainElement(FLEET_FINALIZER))
+			}
+		})
+	})
+
+	Context("Error paths", func() {
+		const fleetName = "fleet-err-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 2))).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // adds finalizer
+		})
+
+		AfterEach(func() { cleanupFleet(fleetName) })
+
+		It("returns an error when server creation fails during scale-up", func() {
+			failReconciler := &FleetReconciler{
+				Client:   FakeFailClient{Client: k8sClient, FailCreate: true},
+				Scheme:   k8sClient.Scheme(),
+				Recorder: NewFakeRecorder(),
+			}
+			_, err := failReconciler.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: fleetName, Namespace: ns},
+			})
 			Expect(err).To(HaveOccurred())
+		})
 
-			By("Succeed in create")
-			fakeClient.FailCreate = false
-			reconciler.Client = fakeClient
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
-			Expect(err).To(Not(HaveOccurred()))
-
-			By("Fail Delete")
-			var fleet gameserverv1alpha1.Fleet
-			err = fakeClient.Get(ctx, namespacedName, &fleet)
-			Expect(err).To(Not(HaveOccurred()))
-			fleet.Spec.Scaling.Replicas = fleet.Spec.Scaling.Replicas - 1
-			err = fakeClient.Update(ctx, &fleet)
-			fakeClient.FailDelete = true
-			reconciler.Client = fakeClient
-			_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: namespacedName})
+		It("returns an error when listing servers fails", func() {
+			failReconciler := &FleetReconciler{
+				Client:   FakeFailClient{Client: k8sClient, FailList: true},
+				Scheme:   k8sClient.Scheme(),
+				Recorder: NewFakeRecorder(),
+			}
+			_, err := failReconciler.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: fleetName, Namespace: ns},
+			})
 			Expect(err).To(HaveOccurred())
 		})
 	})

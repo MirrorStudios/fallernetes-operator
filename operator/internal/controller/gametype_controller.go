@@ -1,5 +1,5 @@
 /*
-Copyright 2025.
+Copyright 2026.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,20 +19,22 @@ package controller
 import (
 	"context"
 	"fmt"
-	"github.com/MirrorStudios/fallernetes/internal/utils"
+
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	log "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
+
+const TypeFinalizer = "gametype.falloria.com/finalizer"
 
 // GameTypeReconciler reconciles a GameType object
 type GameTypeReconciler struct {
@@ -40,8 +42,6 @@ type GameTypeReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 }
-
-const TypeFinalizer = "gametype.falloria.com/finalizer"
 
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypes/status,verbs=get;update;patch
@@ -51,7 +51,7 @@ const TypeFinalizer = "gametype.falloria.com/finalizer"
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("gametype", req.Name, "namespace", req.Namespace)
+	logger := ctrllog.FromContext(ctx).WithValues("gametype", req.Name, "namespace", req.Namespace)
 
 	logger.Info("Reconciling GameType")
 	gametype := &gameserverv1alpha1.GameType{}
@@ -67,10 +67,10 @@ func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if err := r.Update(ctx, gametype); err != nil {
 			r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeInitialized, "failed to add finalizers: %s", err)
 			logger.Error(err, "Failed to add finalizer to gametype")
-			return ctrl.Result{Requeue: true}, err
+			return ctrl.Result{}, err
 		}
 		r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeInitialized, "Added finalizers to game")
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 	}
 
 	// Handle resource deletion
@@ -79,9 +79,9 @@ func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		if err := r.handleDeletion(ctx, gametype, logger); err != nil {
 			r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeInitialized, "failed to remove finalizers: %s", err)
 			logger.Error(err, "Failed to handle gametype deletion")
-			return ctrl.Result{Requeue: true}, err
+			return ctrl.Result{}, err
 		}
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{}, nil
 	}
 
 	err := r.handleGametypeStatus(ctx, gametype, logger)
@@ -91,15 +91,10 @@ func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	err = r.updateReplicaCount(ctx, gametype)
 	if err != nil {
-		return ctrl.Result{Requeue: true}, err
+		return ctrl.Result{}, err
 	}
 
-	result, err, done := r.handleUpdating(ctx, gametype, logger)
-	if done {
-		return result, err
-	}
-
-	return ctrl.Result{Requeue: true}, nil
+	return r.handleUpdating(ctx, gametype, logger)
 }
 
 // updateReplicaCount updates the replica count of the underlying fleet, based on the spec
@@ -126,81 +121,61 @@ func (r *GameTypeReconciler) updateReplicaCount(ctx context.Context, gametype *g
 	return err
 }
 
-// handleUpdating handles the updating process of the GameType
-// Internally, this means creating a fleet, waiting for it to be done
-// Then requesting the other fleet to be deleted
-// And updating the latest fleets replica counts as needed
-func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) (ctrl.Result, error, bool) {
+// handleUpdating handles the updating process of the GameType.
+// It creates an initial fleet if none exists, reconciles replica counts, triggers
+// rolling updates when the pod spec changes, and prunes extra fleets during rollout.
+func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) (ctrl.Result, error) {
 	fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
 	if err != nil {
-		return ctrl.Result{}, err, true
+		return ctrl.Result{}, err
 	}
 	if len(fleets.Items) == 0 {
-		_, err := r.handleCreation(ctx, gametype, logger)
-		if err != nil {
-			return ctrl.Result{Requeue: true}, err, true
+		if _, err := r.handleCreation(ctx, gametype, logger); err != nil {
+			return ctrl.Result{}, err
 		}
 		r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeInitialized, "Created initial fleet")
-		return ctrl.Result{Requeue: true}, nil, true
+		return ctrl.Result{}, nil
 	}
 	if len(fleets.Items) == 1 {
 		fleet := fleets.Items[0]
 		gametype.Status.CurrentFleetName = fleet.Name
 		if err := r.Status().Update(ctx, gametype); err != nil {
-			return ctrl.Result{Requeue: true}, err, true
+			return ctrl.Result{}, err
 		}
 		if !gameserverv1alpha1.AreFleetsPodsEqual(&fleet.Spec, &gametype.Spec.FleetSpec) {
 			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeSpecUpdated, "Creating new fleet")
-			res, err := r.handleCreation(ctx, gametype, logger)
-			return res, err, true
+			return r.handleCreation(ctx, gametype, logger)
 		} else if gametype.Spec.FleetSpec.Scaling.Replicas != gametype.Status.CurrentFleetReplicas {
 			gametype.Status.CurrentFleetReplicas = gametype.Spec.FleetSpec.Scaling.Replicas
 			fleet.Spec.Scaling.Replicas = gametype.Spec.FleetSpec.Scaling.Replicas
 			if err := r.Update(ctx, &fleet); err != nil {
-				return ctrl.Result{Requeue: true}, err, true
+				return ctrl.Result{}, err
 			}
-			err := r.Status().Update(ctx, gametype)
-			if err != nil {
-				return ctrl.Result{Requeue: true}, err, true
+			if err := r.Status().Update(ctx, gametype); err != nil {
+				return ctrl.Result{}, err
 			}
 			r.emitEventf(gametype, corev1.EventTypeNormal, utils.ReasonGametypeReplicasUpdated, "Scaling gametype to %d", fleet.Spec.Scaling.Replicas)
 		}
 	}
 	if len(fleets.Items) > 1 {
-		var oldestFleet *gameserverv1alpha1.Fleet
-		for _, fleet := range fleets.Items {
-			if oldestFleet == nil {
-				oldestFleet = &fleet
-			} else if fleet.CreationTimestamp.Before(&oldestFleet.CreationTimestamp) {
-				oldestFleet = &fleet
-			}
-		}
-
+		oldestFleet := utils.GetOldestFleet(fleets.Items)
 		if oldestFleet != nil && oldestFleet.GetDeletionTimestamp() == nil {
 			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeSpecUpdated, "Deleting extra fleet")
 			if err := r.Delete(ctx, oldestFleet); err != nil {
-				return ctrl.Result{}, err, true
+				return ctrl.Result{}, err
 			}
 		}
 	}
-	return ctrl.Result{}, nil, false
-}
-
-// SetupWithManager sets up the controller with the Manager.
-func (r *GameTypeReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&gameserverv1alpha1.GameType{}).
-		Owns(&gameserverv1alpha1.Fleet{}).
-		Complete(r)
+	return ctrl.Result{}, nil
 }
 
 // handleDeletion is used to trigger deletion of the GameType
 // It first checks if we have the finalizer, then we can imagine we are still removing the fleets
 // Once all fleets are removed, we remove the finalizer
 func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) error {
-	fmt.Printf("Triggered deletion for gametype\n")
+	logger.Info("Handling gametype deletion")
 	if controllerutil.ContainsFinalizer(gametype, TypeFinalizer) {
-		fmt.Printf("Has finalizer in gametype\n")
+		logger.Info("Finalizer present, deleting associated fleets")
 		//Finalizer not yet removed, we can presume that fleet deletion in progress or starting
 		fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
 		if err != nil {
@@ -249,25 +224,27 @@ func (r *GameTypeReconciler) emitEventf(object runtime.Object, eventtype string,
 	r.Recorder.Eventf(object, eventtype, string(reason), message, args...)
 }
 
-// handleGametypeStatus is used by the GameTypeReconciler to make sure the fleet in gametype status is the newest one.
+// handleGametypeStatus keeps gametype.Status.CurrentFleetName pointing at the newest fleet.
 func (r *GameTypeReconciler) handleGametypeStatus(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) error {
 	fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
 	if err != nil {
 		return err
 	}
-	var youngestFleet *gameserverv1alpha1.Fleet
-	for _, fleet := range fleets.Items {
-		if youngestFleet == nil || fleet.GetCreationTimestamp().After(youngestFleet.GetCreationTimestamp().Time) {
-			youngestFleet = &fleet
-		}
-	}
-
-	if youngestFleet != nil {
-		gametype.Status.CurrentFleetName = youngestFleet.Name
-		err = r.Status().Update(ctx, youngestFleet)
-		if err != nil {
+	newestFleet := utils.GetNewestFleet(fleets.Items)
+	if newestFleet != nil {
+		gametype.Status.CurrentFleetName = newestFleet.Name
+		if err := r.Status().Update(ctx, gametype); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *GameTypeReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&gameserverv1alpha1.GameType{}).
+		Named("gametype").
+		Owns(&gameserverv1alpha1.Fleet{}).
+		Complete(r)
 }

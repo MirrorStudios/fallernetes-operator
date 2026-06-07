@@ -1,5 +1,4 @@
 # fallernetes
-
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/fallernetes)](https://artifacthub.io/packages/search?repo=fallernetes)
 
 The fallernetes operator was inspired by @UnfamousThomas's [thesis](https://github.com/UnfamousThomas/thesis-initial). It is a simple operator for managing the
