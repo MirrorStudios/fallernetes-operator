@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -229,6 +230,51 @@ var _ = Describe("Fleet Controller", func() {
 				remainingNames[i] = s.Name
 			}
 			Expect(remainingNames).NotTo(ContainElement(oldest.Name))
+		})
+	})
+
+	Context("Full scale-up to three replicas", func() {
+		const fleetName = "fleet-scale-up-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 3))).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // finalizer
+		})
+
+		AfterEach(func() { cleanupFleet(fleetName) })
+
+		It("creates three Server CRs", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(serversForFleet(fleetName)).To(HaveLen(3))
+		})
+
+		It("results in three Pods after server reconciles", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // scale to 3
+
+			serverList := &gameserverv1alpha1.ServerList{}
+			Expect(k8sClient.List(context.Background(), serverList,
+				client.InNamespace(ns),
+				client.MatchingLabels{"fleet": fleetName},
+			)).To(Succeed())
+
+			serverReconciler := &ServerReconciler{
+				Client:          k8sClient,
+				Scheme:          k8sClient.Scheme(),
+				Recorder:        NewFakeRecorder(),
+				DeletionAllowed: FakeDeletion{Allow: true},
+			}
+			for _, s := range serverList.Items {
+				req := reconcile.Request{NamespacedName: types.NamespacedName{Name: s.Name, Namespace: ns}}
+				_, _ = serverReconciler.Reconcile(context.Background(), req) // finalizer
+				_, _ = serverReconciler.Reconcile(context.Background(), req) // pod
+			}
+
+			podList := &corev1.PodList{}
+			Expect(k8sClient.List(context.Background(), podList,
+				client.InNamespace(ns),
+				client.MatchingLabels{"fleet": fleetName},
+			)).To(Succeed())
+			Expect(podList.Items).To(HaveLen(3))
 		})
 	})
 
