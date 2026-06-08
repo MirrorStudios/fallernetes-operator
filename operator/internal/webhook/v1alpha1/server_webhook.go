@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"context"
+	"fmt"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -86,17 +87,23 @@ type ServerCustomValidator struct {
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Server.
 func (v *ServerCustomValidator) ValidateCreate(_ context.Context, server *gameserverv1alpha1.Server) (admission.Warnings, error) {
-
 	serverlog.Info("Validation for Server upon creation", "name", server.GetName())
-
-	return nil, nil
+	return nil, validateServer(server)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Server.
 func (v *ServerCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj *gameserverv1alpha1.Server) (admission.Warnings, error) {
 	serverlog.Info("Validation for Server upon update", "name", newObj.GetName())
+	return nil, validateServer(newObj)
+}
 
-	return nil, nil
+func validateServer(server *gameserverv1alpha1.Server) error {
+	if s := server.Spec.SidecarSettings; s != nil && s.Port != nil {
+		if *s.Port < 1 || *s.Port > 65535 {
+			return fmt.Errorf("spec.sidecarSettings.port must be in range 1–65535, got %d", *s.Port)
+		}
+	}
+	return nil
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Server.
