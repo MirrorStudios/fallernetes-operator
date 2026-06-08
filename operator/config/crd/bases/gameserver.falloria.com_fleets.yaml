@@ -46,7 +46,7 @@ spec:
                     description: Whether we should first delete the oldest or newest
                     enum:
                     - oldest_first
-                    - smallest_first
+                    - newest_first
                     type: string
                   prioritizeAllowed:
                     default: true

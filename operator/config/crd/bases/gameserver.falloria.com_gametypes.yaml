@@ -50,7 +50,7 @@ spec:
                           newest
                         enum:
                         - oldest_first
-                        - smallest_first
+                        - newest_first
                         type: string
                       prioritizeAllowed:
                         default: true

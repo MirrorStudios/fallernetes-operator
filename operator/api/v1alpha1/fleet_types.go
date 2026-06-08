@@ -52,7 +52,7 @@ type FleetScaling struct {
 	// Whether we should first delete the oldest or newest
 	// +kubebuilder:default=oldest_first
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Enum=oldest_first;smallest_first
+	// +kubebuilder:validation:Enum=oldest_first;newest_first
 	AgePriority Priority `json:"agePriority"`
 }
 
