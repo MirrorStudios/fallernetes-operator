@@ -119,6 +119,27 @@ var _ = Describe("Fleet Controller", func() {
 		})
 	})
 
+	Context("Scale-up idempotency", func() {
+		const fleetName = "fleet-idempotent-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 2))).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // finalizer
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // scale to 2
+			Expect(serversForFleet(fleetName)).To(HaveLen(2))
+		})
+
+		AfterEach(func() { cleanupFleet(fleetName) })
+
+		It("does not create extra Servers when reconciled repeatedly at the same replica count", func() {
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+
+			Expect(serversForFleet(fleetName)).To(HaveLen(2))
+		})
+	})
+
 	Context("Scale down", func() {
 		const fleetName = "fleet-scaledown-test"
 
@@ -357,6 +378,62 @@ var _ = Describe("Fleet Controller", func() {
 				remainingNames[i] = s.Name
 			}
 			Expect(remainingNames).NotTo(ContainElement(newest.Name))
+		})
+	})
+
+	Context("PrioritizeAllowed=true", func() {
+		const fleetName = "fleet-priority-test"
+
+		BeforeEach(func() {
+			fleet := makeFleet(fleetName, ns, 0)
+			fleet.Spec.Scaling.PrioritizeAllowed = true
+			fleet.Spec.Scaling.AgePriority = gameserverv1alpha1.OldestFirst
+			Expect(k8sClient.Create(context.Background(), fleet)).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // finalizer
+
+			for _, name := range []string{"old-server", "mid-server", "new-allowed"} {
+				s := makeServer(fleetName+"-"+name, ns)
+				s.Labels = map[string]string{"fleet": fleetName}
+				Expect(k8sClient.Create(context.Background(), s)).To(Succeed())
+			}
+
+			fleet2 := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet2)).To(Succeed())
+			fleet2.Spec.Scaling.Replicas = 3
+			Expect(k8sClient.Update(context.Background(), fleet2)).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+		})
+
+		AfterEach(func() { cleanupFleet(fleetName) })
+
+		It("deletes the deletion-allowed server even though it is the newest", func() {
+			allowedName := fleetName + "-new-allowed"
+			deletion := MapDeletion{Allow: map[string]bool{allowedName: true}}
+
+			reconciler := &FleetReconciler{
+				Client:          k8sClient,
+				Scheme:          k8sClient.Scheme(),
+				Recorder:        NewFakeRecorder(),
+				DeletionChecker: deletion,
+			}
+
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			fleet.Spec.Scaling.Replicas = 2
+			Expect(k8sClient.Update(context.Background(), fleet)).To(Succeed())
+
+			_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: fleetName, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			remaining := serversForFleet(fleetName)
+			Expect(remaining).To(HaveLen(2))
+			remainingNames := make([]string, len(remaining))
+			for i, s := range remaining {
+				remainingNames[i] = s.Name
+			}
+			Expect(remainingNames).NotTo(ContainElement(allowedName))
 		})
 	})
 
