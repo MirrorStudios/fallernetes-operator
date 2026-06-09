@@ -189,7 +189,10 @@ var _ = Describe("Server Controller", func() {
 		const serverName = "server-env-test"
 
 		BeforeEach(func() {
-			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			capacity := 10
+			server := makeServer(serverName, ns)
+			server.Spec.GameInfo = &gameserverv1alpha1.GameInfo{Capacity: &capacity}
+			Expect(k8sClient.Create(context.Background(), server)).To(Succeed())
 			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // add finalizer
 			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // create pod
 		})
