@@ -16,7 +16,7 @@ type FakeFleetDeleteChecker struct {
 	DeletionState map[string]bool
 }
 
-func (f FakeFleetDeleteChecker) isDeleteAllowed(_ context.Context, server *v1alpha1.Server, _ *client.Client) (bool, error) {
+func (f FakeFleetDeleteChecker) IsDeleteAllowed(_ context.Context, server *v1alpha1.Server, _ *client.Client) (bool, error) {
 	return f.DeletionState[server.Name], nil
 }
 

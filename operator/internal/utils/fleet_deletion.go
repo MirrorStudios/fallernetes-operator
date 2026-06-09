@@ -14,7 +14,7 @@ import (
 )
 
 type FleetDeletionChecker interface {
-	isDeleteAllowed(ctx context.Context, server *v1alpha1.Server, c *client.Client) (bool, error)
+	IsDeleteAllowed(ctx context.Context, server *v1alpha1.Server, c *client.Client) (bool, error)
 }
 
 // FindDeleteServer is used to find the server that should be deleted.
@@ -55,7 +55,7 @@ func getOldestServer(ctx context.Context, servers *v1alpha1.ServerList, deleteFi
 		// Check if we want to prioritize allowed
 		if deleteFirst {
 			//Check if this is allowed
-			allowed, err := checker.isDeleteAllowed(ctx, server, client)
+			allowed, err := checker.IsDeleteAllowed(ctx, server, client)
 			if err != nil {
 				return nil, err
 			}
@@ -105,7 +105,7 @@ func getNewestServer(ctx context.Context, servers *v1alpha1.ServerList, deleteFi
 		// Check if we want to prioritize allowed
 		if deleteFirst {
 			//Check if this is allowed
-			allowed, err := checker.isDeleteAllowed(ctx, server, client)
+			allowed, err := checker.IsDeleteAllowed(ctx, server, client)
 			if err != nil {
 				return nil, err
 			}
@@ -133,7 +133,7 @@ func getNewestServer(ctx context.Context, servers *v1alpha1.ServerList, deleteFi
 }
 
 // isDeleteAllowed is a utility for a server object, to communicate with the sidecar to see if deletion is allowed
-func (ProdDeletionChecker) isDeleteAllowed(ctx context.Context, server *v1alpha1.Server, c *client.Client) (bool, error) {
+func (ProdDeletionChecker) IsDeleteAllowed(ctx context.Context, server *v1alpha1.Server, c *client.Client) (bool, error) {
 	podName := server.Name + "-pod"
 	pod := &v1.Pod{}
 	err := (*c).Get(ctx, types.NamespacedName{Namespace: server.Namespace, Name: podName}, pod)
