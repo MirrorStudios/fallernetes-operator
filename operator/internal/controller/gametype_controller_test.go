@@ -203,6 +203,59 @@ var _ = Describe("GameType Controller", func() {
 		})
 	})
 
+	Context("Status replica sync", func() {
+		const gtName = "gt-status-replica-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gtName, ns, 2))).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed()) // finalizer
+			Expect(reconcileGameType(gtName)).To(Succeed()) // create fleet
+			Expect(reconcileGameType(gtName)).To(Succeed()) // sync status
+		})
+
+		AfterEach(func() { cleanupGameType(gtName) })
+
+		It("reflects the initial replica count in status", func() {
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Status.CurrentFleetReplicas).To(Equal(int32(2)))
+		})
+
+		It("updates status after replicas are changed", func() {
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			gt.Spec.FleetSpec.Scaling.Replicas = 4
+			Expect(k8sClient.Update(context.Background(), gt)).To(Succeed())
+
+			Expect(reconcileGameType(gtName)).To(Succeed()) // propagate to fleet
+			Expect(reconcileGameType(gtName)).To(Succeed()) // sync status back
+
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Status.CurrentFleetReplicas).To(Equal(int32(4)))
+		})
+	})
+
+	Context("Idempotency", func() {
+		const gtName = "gt-idempotent-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gtName, ns, 1))).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed()) // finalizer
+			Expect(reconcileGameType(gtName)).To(Succeed()) // create fleet
+			Expect(fleetsForGameType(gtName)).To(HaveLen(1))
+		})
+
+		AfterEach(func() { cleanupGameType(gtName) })
+
+		It("does not create a second Fleet when reconciled again with no spec change", func() {
+			Expect(reconcileGameType(gtName)).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed())
+
+			Expect(fleetsForGameType(gtName)).To(HaveLen(1))
+		})
+	})
+
 	Context("Rolling update on pod spec change", func() {
 		const gtName = "gt-rolling-test"
 

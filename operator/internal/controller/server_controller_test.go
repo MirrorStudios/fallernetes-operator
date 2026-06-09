@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
@@ -181,6 +182,125 @@ var _ = Describe("Server Controller", func() {
 			if err == nil {
 				Expect(pod.Finalizers).NotTo(ContainElement(ServerFinalizer))
 			}
+		})
+	})
+
+	Context("Sidecar environment variables", func() {
+		const serverName = "server-env-test"
+
+		BeforeEach(func() {
+			capacity := 10
+			server := makeServer(serverName, ns)
+			server.Spec.GameInfo = &gameserverv1alpha1.GameInfo{Capacity: &capacity}
+			Expect(k8sClient.Create(context.Background(), server)).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // add finalizer
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // create pod
+		})
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("injects PORT, SERVER_NAME, and SERVER_CAPACITY into the sidecar container", func() {
+			pod, err := getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
+
+			var sidecar *corev1.Container
+			for i := range pod.Spec.Containers {
+				if pod.Spec.Containers[i].Name == "fallernetes-sidecar" {
+					sidecar = &pod.Spec.Containers[i]
+					break
+				}
+			}
+			Expect(sidecar).NotTo(BeNil(), "sidecar container not found in pod spec")
+
+			envMap := make(map[string]string)
+			for _, e := range sidecar.Env {
+				envMap[e.Name] = e.Value
+			}
+
+			Expect(envMap).To(HaveKey("PORT"))
+			Expect(envMap).To(HaveKey("SERVER_NAME"))
+			Expect(envMap["SERVER_NAME"]).To(Equal(serverName))
+			Expect(envMap).To(HaveKey("SERVER_CAPACITY"))
+		})
+	})
+
+	Context("Idempotency", func() {
+		const serverName = "server-idempotent-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // finalizer
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // create pod
+		})
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("does not create a second pod when reconciled again", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			podList := &corev1.PodList{}
+			Expect(k8sClient.List(context.Background(), podList,
+				client.InNamespace(ns),
+				client.MatchingLabels{"server": serverName},
+			)).To(Succeed())
+			Expect(podList.Items).To(HaveLen(1))
+		})
+	})
+
+	Context("Owner reference", func() {
+		const serverName = "server-ownerref-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // finalizer
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // create pod
+		})
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("sets the Server as the pod's owner reference", func() {
+			pod, err := getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(pod.OwnerReferences).NotTo(BeEmpty())
+
+			owner := pod.OwnerReferences[0]
+			Expect(owner.Name).To(Equal(serverName))
+			Expect(owner.Kind).To(Equal("Server"))
+		})
+	})
+
+	Context("Self-healing", func() {
+		const serverName = "server-selfheal-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // finalizer
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // create pod
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // pod finalizer
+		})
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("recreates the pod after it is manually deleted", func() {
+			// Confirm pod exists
+			pod, err := getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Simulate external deletion: strip finalizer first so the delete goes through
+			clearFinalizers(pod)
+			Expect(k8sClient.Delete(context.Background(), pod)).To(Succeed())
+
+			// Pod should be gone
+			_, err = getPod(serverName)
+			Expect(err).To(HaveOccurred())
+
+			// Reconcile detects missing pod and recreates it
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
+
+			_, err = getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 
