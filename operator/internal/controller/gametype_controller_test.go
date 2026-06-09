@@ -72,6 +72,37 @@ var _ = Describe("GameType Controller", func() {
 		})
 	})
 
+	Context("Initial Fleet creation", func() {
+		const gtName = "gt-fleet-label-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gtName, ns, 2))).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed()) // adds finalizer
+		})
+
+		AfterEach(func() { cleanupGameType(gtName) })
+
+		It("creates exactly one Fleet with the gametype label", func() {
+			Expect(reconcileGameType(gtName)).To(Succeed())
+
+			fleetList := &gameserverv1alpha1.FleetList{}
+			Expect(k8sClient.List(context.Background(), fleetList,
+				client.InNamespace(ns),
+				client.MatchingLabels{"gametype": gtName},
+			)).To(Succeed())
+			Expect(fleetList.Items).To(HaveLen(1))
+		})
+
+		It("stores the Fleet name in the GameType status", func() {
+			Expect(reconcileGameType(gtName)).To(Succeed()) // create fleet
+			Expect(reconcileGameType(gtName)).To(Succeed()) // set status
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Status.CurrentFleetName).NotTo(BeEmpty())
+		})
+	})
+
 	Context("Fleet creation", func() {
 		const gtName = "gt-fleet-test"
 
