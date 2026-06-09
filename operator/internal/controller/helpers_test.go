@@ -135,7 +135,7 @@ func (f FakeDeletion) IsDeletionAllowed(_ *gameserverv1alpha1.Server, _ *corev1.
 
 var _ sidecar.Deletion = FakeDeletion{}
 
-// MapDeletion implements utils.FleetDeletionChecker with per-server control.
+// MapDeletion implements sidecar.FleetDeletionChecker with per-server control.
 type MapDeletion struct {
 	Allow map[string]bool
 }
@@ -144,7 +144,7 @@ func (m MapDeletion) IsDeleteAllowed(_ context.Context, server *gameserverv1alph
 	return m.Allow[server.Name], nil
 }
 
-var _ utils.FleetDeletionChecker = MapDeletion{}
+var _ sidecar.FleetDeletionChecker = MapDeletion{}
 
 // Resource factory helpers
 
