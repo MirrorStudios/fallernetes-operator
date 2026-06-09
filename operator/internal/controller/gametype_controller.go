@@ -159,11 +159,15 @@ func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *games
 		}
 	}
 	if len(fleets.Items) > 1 {
-		oldestFleet := utils.GetOldestFleet(fleets.Items)
-		if oldestFleet != nil && oldestFleet.GetDeletionTimestamp() == nil {
-			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeSpecUpdated, "Deleting extra fleet")
-			if err := r.Delete(ctx, oldestFleet); err != nil {
-				return ctrl.Result{}, err
+		for i := range fleets.Items {
+			fleet := &fleets.Items[i]
+			if !gameserverv1alpha1.AreFleetsPodsEqual(&fleet.Spec, &gametype.Spec.FleetSpec) &&
+				fleet.GetDeletionTimestamp() == nil {
+				r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeSpecUpdated, "Deleting extra fleet")
+				if err := r.Delete(ctx, fleet); err != nil {
+					return ctrl.Result{}, err
+				}
+				break
 			}
 		}
 	}

@@ -72,6 +72,37 @@ var _ = Describe("GameType Controller", func() {
 		})
 	})
 
+	Context("Initial Fleet creation", func() {
+		const gtName = "gt-fleet-label-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gtName, ns, 2))).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed()) // adds finalizer
+		})
+
+		AfterEach(func() { cleanupGameType(gtName) })
+
+		It("creates exactly one Fleet with the gametype label", func() {
+			Expect(reconcileGameType(gtName)).To(Succeed())
+
+			fleetList := &gameserverv1alpha1.FleetList{}
+			Expect(k8sClient.List(context.Background(), fleetList,
+				client.InNamespace(ns),
+				client.MatchingLabels{"gametype": gtName},
+			)).To(Succeed())
+			Expect(fleetList.Items).To(HaveLen(1))
+		})
+
+		It("stores the Fleet name in the GameType status", func() {
+			Expect(reconcileGameType(gtName)).To(Succeed()) // create fleet
+			Expect(reconcileGameType(gtName)).To(Succeed()) // set status
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Status.CurrentFleetName).NotTo(BeEmpty())
+		})
+	})
+
 	Context("Fleet creation", func() {
 		const gtName = "gt-fleet-test"
 
@@ -169,6 +200,55 @@ var _ = Describe("GameType Controller", func() {
 			if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, updated); err == nil {
 				Expect(updated.Finalizers).NotTo(ContainElement(TypeFinalizer))
 			}
+		})
+	})
+
+	Context("Rolling update on pod spec change", func() {
+		const gtName = "gt-rolling-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gtName, ns, 1))).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed()) // adds finalizer
+			Expect(reconcileGameType(gtName)).To(Succeed()) // create initial fleet
+			Expect(reconcileGameType(gtName)).To(Succeed()) // set status
+		})
+
+		AfterEach(func() { cleanupGameType(gtName) })
+
+		It("creates a second Fleet when the pod image changes", func() {
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			patch := client.MergeFrom(gt.DeepCopy())
+			gt.Spec.FleetSpec.ServerSpec.Pod.Containers[0].Image = "game-server:v2"
+			Expect(k8sClient.Patch(context.Background(), gt, patch)).To(Succeed())
+
+			Expect(reconcileGameType(gtName)).To(Succeed())
+
+			fleetList := &gameserverv1alpha1.FleetList{}
+			Expect(k8sClient.List(context.Background(), fleetList,
+				client.InNamespace(ns),
+				client.MatchingLabels{"gametype": gtName},
+			)).To(Succeed())
+			Expect(fleetList.Items).To(HaveLen(2), "expected old + new Fleet to coexist mid-rollout")
+		})
+
+		It("prunes the old Fleet after the new one is active", func() {
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			patch := client.MergeFrom(gt.DeepCopy())
+			gt.Spec.FleetSpec.ServerSpec.Pod.Containers[0].Image = "game-server:v2"
+			Expect(k8sClient.Patch(context.Background(), gt, patch)).To(Succeed())
+
+			Expect(reconcileGameType(gtName)).To(Succeed()) // create new fleet
+			Expect(reconcileGameType(gtName)).To(Succeed()) // prune old fleet
+
+			fleetList := &gameserverv1alpha1.FleetList{}
+			Expect(k8sClient.List(context.Background(), fleetList,
+				client.InNamespace(ns),
+				client.MatchingLabels{"gametype": gtName},
+			)).To(Succeed())
+			Expect(fleetList.Items).To(HaveLen(1))
+			Expect(fleetList.Items[0].Spec.ServerSpec.Pod.Containers[0].Image).To(Equal("game-server:v2"))
 		})
 	})
 })
