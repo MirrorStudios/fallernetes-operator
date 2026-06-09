@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -133,7 +133,7 @@ func (f FakeDeletion) IsDeletionAllowed(_ *gameserverv1alpha1.Server, _ *corev1.
 	return f.Allow, f.Err
 }
 
-var _ utils.Deletion = FakeDeletion{}
+var _ sidecar.Deletion = FakeDeletion{}
 
 // Resource factory helpers
 

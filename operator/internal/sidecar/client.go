@@ -1,4 +1,4 @@
-package utils
+package sidecar
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ type shutdownRequest struct {
 	Shutdown bool `json:"shutdown"`
 }
 
-// IsDeleteAllowed sents a request to API/allow_delete to ask the server if it can be shutdown and deleted
+// IsDeleteAllowed sends a request to API/allow_delete to ask the server if it can be shutdown and deleted
 func IsDeleteAllowed(pod *v1.Pod, port string) (bool, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
