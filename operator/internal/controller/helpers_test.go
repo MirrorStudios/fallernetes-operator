@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -133,9 +133,9 @@ func (f FakeDeletion) IsDeletionAllowed(_ *gameserverv1alpha1.Server, _ *corev1.
 	return f.Allow, f.Err
 }
 
-var _ utils.Deletion = FakeDeletion{}
+var _ sidecar.Deletion = FakeDeletion{}
 
-// MapDeletion implements utils.FleetDeletionChecker with per-server control.
+// MapDeletion implements sidecar.FleetDeletionChecker with per-server control.
 type MapDeletion struct {
 	Allow map[string]bool
 }
@@ -144,7 +144,7 @@ func (m MapDeletion) IsDeleteAllowed(_ context.Context, server *gameserverv1alph
 	return m.Allow[server.Name], nil
 }
 
-var _ utils.FleetDeletionChecker = MapDeletion{}
+var _ sidecar.FleetDeletionChecker = MapDeletion{}
 
 // Resource factory helpers
 

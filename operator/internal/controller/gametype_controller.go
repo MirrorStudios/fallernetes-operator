@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/MirrorStudios/fallernetes-operator/internal/builders"
 	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -209,7 +210,7 @@ func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *games
 
 // handleCreation is used to initially create the underlying fleet
 func (r *GameTypeReconciler) handleCreation(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) (ctrl.Result, error) {
-	fleet := utils.GetFleetObjectForType(gametype)
+	fleet := builders.GetFleetObjectForType(gametype)
 	if err := r.Create(ctx, fleet); err != nil {
 		r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeReplicasUpdated, "Failed to create new fleet %s", err)
 		logger.Error(err, "failed to create a new fleet for gametype")

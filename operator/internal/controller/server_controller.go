@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/MirrorStudios/fallernetes-operator/internal/builders"
+	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
 	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -44,7 +46,7 @@ type ServerReconciler struct {
 	Scheme            *runtime.Scheme
 	ErrorOnNotAllowed bool
 	Recorder          record.EventRecorder
-	DeletionAllowed   utils.Deletion
+	DeletionAllowed   sidecar.Deletion
 }
 
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers,verbs=get;list;watch;create;update;patch;delete
@@ -142,7 +144,7 @@ func (r *ServerReconciler) ensurePodExists(ctx context.Context, server *gameserv
 	}
 
 	if err != nil { // Pod does not exist
-		newPod := utils.GetNewPod(server, server.Namespace)
+		newPod := builders.GetNewPod(server, server.Namespace)
 		r.emitEventf(server, corev1.EventTypeNormal, utils.ReasonServerInitialized, "Setting up sidecar with image %s", server.Spec.SidecarSettings.SidecarImage)
 		err = controllerutil.SetControllerReference(server, newPod, r.Scheme)
 		if err != nil {

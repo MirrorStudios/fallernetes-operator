@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,6 +20,8 @@ type FakeFleetDeleteChecker struct {
 func (f FakeFleetDeleteChecker) IsDeleteAllowed(_ context.Context, server *v1alpha1.Server, _ *client.Client) (bool, error) {
 	return f.DeletionState[server.Name], nil
 }
+
+var _ sidecar.FleetDeletionChecker = FakeFleetDeleteChecker{}
 
 func makeTestServers(offsets ...time.Duration) *v1alpha1.ServerList {
 	base := time.Now()

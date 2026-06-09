@@ -21,6 +21,8 @@ import (
 	"fmt"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/builders"
+	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
 	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,7 +40,7 @@ type FleetReconciler struct {
 	client.Client
 	Scheme          *runtime.Scheme
 	Recorder        record.EventRecorder
-	DeletionChecker utils.FleetDeletionChecker
+	DeletionChecker sidecar.FleetDeletionChecker
 }
 
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=fleets,verbs=get;list;watch;create;update;patch;delete
@@ -114,7 +116,7 @@ func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserve
 		//Scale up
 		serversNeeded := fleet.Spec.Scaling.Replicas - fleet.Status.CurrentReplicas
 		for range serversNeeded {
-			server := utils.CreateServerForFleet(*fleet, namespace)
+			server := builders.CreateServerForFleet(*fleet, namespace)
 			err := r.Create(ctx, server)
 			if err != nil {
 				r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetScaleServers, "Failed to create a server: %s", err)
