@@ -48,39 +48,59 @@ var _ = Describe("Server Webhook", func() {
 	})
 
 	Context("When creating Server under Defaulting Webhook", func() {
-		// TODO (user): Add logic for defaulting webhooks
-		// Example:
-		// It("Should apply defaults when a required field is empty", func() {
-		//     By("simulating a scenario where defaults should be applied")
-		//     obj.SomeFieldWithDefault = ""
-		//     By("calling the Default method to apply defaults")
-		//     defaulter.Default(ctx, obj)
-		//     By("checking that the default values are set")
-		//     Expect(obj.SomeFieldWithDefault).To(Equal("default_value"))
-		// })
+		It("sets SidecarSettings defaults when the field is nil", func() {
+			obj.Spec.SidecarSettings = nil
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(obj.Spec.SidecarSettings).NotTo(BeNil())
+			Expect(*obj.Spec.SidecarSettings.Port).To(Equal(8080))
+			Expect(*obj.Spec.SidecarSettings.SidecarImage).To(Equal("unfamousthomas/fallernetes-sidecar:main"))
+		})
+
+		It("does not override an already-set Port", func() {
+			port := 9090
+			obj.Spec.SidecarSettings = &gameserverv1alpha1.SidecarSettings{Port: &port}
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(*obj.Spec.SidecarSettings.Port).To(Equal(9090))
+			Expect(*obj.Spec.SidecarSettings.SidecarImage).NotTo(BeEmpty())
+		})
+
+		It("does not override fully populated SidecarSettings", func() {
+			port := 7777
+			img := "my-custom-sidecar:v1"
+			obj.Spec.SidecarSettings = &gameserverv1alpha1.SidecarSettings{Port: &port, SidecarImage: &img}
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(*obj.Spec.SidecarSettings.Port).To(Equal(7777))
+			Expect(*obj.Spec.SidecarSettings.SidecarImage).To(Equal("my-custom-sidecar:v1"))
+		})
 	})
 
 	Context("When creating or updating Server under Validating Webhook", func() {
-		// TODO (user): Add logic for validating webhooks
-		// Example:
-		// It("Should deny creation if a required field is missing", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = ""
-		//     Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
-		// })
-		//
-		// It("Should admit creation if all required fields are present", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = "valid_value"
-		//     Expect(validator.ValidateCreate(ctx, obj)).To(BeNil())
-		// })
-		//
-		// It("Should validate updates correctly", func() {
-		//     By("simulating a valid update scenario")
-		//     oldObj.SomeRequiredField = "updated_value"
-		//     obj.SomeRequiredField = "updated_value"
-		//     Expect(validator.ValidateUpdate(ctx, oldObj, obj)).To(BeNil())
-		// })
+		It("rejects a Server with sidecar port 0", func() {
+			port := 0
+			obj.Spec.SidecarSettings = &gameserverv1alpha1.SidecarSettings{Port: &port}
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("rejects a Server with sidecar port above 65535", func() {
+			port := 99999
+			obj.Spec.SidecarSettings = &gameserverv1alpha1.SidecarSettings{Port: &port}
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("admits a Server with no SidecarSettings", func() {
+			obj.Spec.SidecarSettings = nil
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("admits a Server with a valid sidecar port", func() {
+			port := 8080
+			obj.Spec.SidecarSettings = &gameserverv1alpha1.SidecarSettings{Port: &port}
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 })

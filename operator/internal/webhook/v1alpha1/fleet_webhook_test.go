@@ -17,11 +17,13 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	// TODO (user): Add any additional imports if needed
 )
 
 var _ = Describe("Fleet Webhook", func() {
@@ -48,39 +50,48 @@ var _ = Describe("Fleet Webhook", func() {
 	})
 
 	Context("When creating Fleet under Defaulting Webhook", func() {
-		// TODO (user): Add logic for defaulting webhooks
-		// Example:
-		// It("Should apply defaults when a required field is empty", func() {
-		//     By("simulating a scenario where defaults should be applied")
-		//     obj.SomeFieldWithDefault = ""
-		//     By("calling the Default method to apply defaults")
-		//     defaulter.Default(ctx, obj)
-		//     By("checking that the default values are set")
-		//     Expect(obj.SomeFieldWithDefault).To(Equal("default_value"))
-		// })
+		It("sets TimeOut to 40 minutes when nil", func() {
+			obj.Spec.ServerSpec.TimeOut = nil
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(obj.Spec.ServerSpec.TimeOut).NotTo(BeNil())
+			Expect(obj.Spec.ServerSpec.TimeOut.Duration).To(Equal(time.Minute * 40))
+		})
+
+		It("does not override an already-set TimeOut", func() {
+			obj.Spec.ServerSpec.TimeOut = &metav1.Duration{Duration: time.Minute * 10}
+			Expect(defaulter.Default(ctx, obj)).To(Succeed())
+			Expect(obj.Spec.ServerSpec.TimeOut.Duration).To(Equal(time.Minute * 10))
+		})
 	})
 
 	Context("When creating or updating Fleet under Validating Webhook", func() {
-		// TODO (user): Add logic for validating webhooks
-		// Example:
-		// It("Should deny creation if a required field is missing", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = ""
-		//     Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
-		// })
-		//
-		// It("Should admit creation if all required fields are present", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = "valid_value"
-		//     Expect(validator.ValidateCreate(ctx, obj)).To(BeNil())
-		// })
-		//
-		// It("Should validate updates correctly", func() {
-		//     By("simulating a valid update scenario")
-		//     oldObj.SomeRequiredField = "updated_value"
-		//     obj.SomeRequiredField = "updated_value"
-		//     Expect(validator.ValidateUpdate(ctx, oldObj, obj)).To(BeNil())
-		// })
+		It("rejects a Fleet with negative replicas", func() {
+			obj.Spec.Scaling.Replicas = -1
+			obj.Spec.Scaling.AgePriority = gameserverv1alpha1.OldestFirst
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("rejects a Fleet with an invalid AgePriority", func() {
+			obj.Spec.Scaling.Replicas = 1
+			obj.Spec.Scaling.AgePriority = "random_value"
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("admits a valid Fleet", func() {
+			obj.Spec.Scaling.Replicas = 2
+			obj.Spec.Scaling.AgePriority = gameserverv1alpha1.NewestFirst
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("rejects an update that sets replicas to a negative value", func() {
+			obj.Spec.Scaling.Replicas = -5
+			obj.Spec.Scaling.AgePriority = gameserverv1alpha1.OldestFirst
+			_, err := validator.ValidateUpdate(ctx, oldObj, obj)
+			Expect(err).To(HaveOccurred())
+		})
 	})
 
 })

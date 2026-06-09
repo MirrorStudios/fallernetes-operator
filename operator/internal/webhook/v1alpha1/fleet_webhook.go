@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,15 +74,27 @@ type FleetCustomValidator struct {
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
 func (v *FleetCustomValidator) ValidateCreate(_ context.Context, obj *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
 	fleetlog.Info("Validation for Fleet upon creation", "name", obj.GetName())
-
-	return nil, nil
+	return nil, validateFleet(obj)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
 func (v *FleetCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
 	fleetlog.Info("Validation for Fleet upon update", "name", newObj.GetName())
+	return nil, validateFleet(newObj)
+}
 
-	return nil, nil
+func validateFleet(fleet *gameserverv1alpha1.Fleet) error {
+	if fleet.Spec.Scaling.Replicas < 0 {
+		return fmt.Errorf("spec.scaling.replicas must be >= 0, got %d", fleet.Spec.Scaling.Replicas)
+	}
+	validPriorities := map[gameserverv1alpha1.Priority]bool{
+		gameserverv1alpha1.OldestFirst: true,
+		gameserverv1alpha1.NewestFirst: true,
+	}
+	if !validPriorities[fleet.Spec.Scaling.AgePriority] {
+		return fmt.Errorf("spec.scaling.agePriority must be one of oldest_first|newest_first, got %q", fleet.Spec.Scaling.AgePriority)
+	}
+	return nil
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
