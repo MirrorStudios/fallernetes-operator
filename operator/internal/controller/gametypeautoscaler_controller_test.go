@@ -109,6 +109,60 @@ var _ = Describe("GameTypeAutoscaler Controller", func() {
 		})
 	})
 
+	Context("Behavioral", func() {
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gametypeName, ns, 3))).To(Succeed())
+		})
+
+		It("passes the autoscaler spec and current gametype to the webhook", func() {
+			capture := &FakeWebhookCapture{}
+			r, _ := newReconciler(capture)
+			_, err := r.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(capture.CalledWithAutoscaler).NotTo(BeNil())
+			Expect(capture.CalledWithAutoscaler.Spec.GameTypeName).To(Equal(gametypeName))
+			Expect(capture.CalledWithGameType).NotTo(BeNil())
+			Expect(capture.CalledWithGameType.Spec.FleetSpec.Scaling.Replicas).To(Equal(int32(3)))
+		})
+
+		It("does not update the GameType when the webhook says no scale is needed", func() {
+			r, _ := newReconciler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: false}})
+			_, err := r.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gametypeName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Spec.FleetSpec.Scaling.Replicas).To(Equal(int32(3)))
+		})
+
+		It("requeues after the sync interval even when scaling occurs", func() {
+			r, _ := newReconciler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 5}})
+			result, err := r.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(interval.Duration))
+		})
+
+		It("returns an error when the GameType update fails during scaling", func() {
+			reconciler := &GameTypeAutoscalerReconciler{
+				Client:   FakeFailClient{Client: k8sClient, FailUpdate: true},
+				Scheme:   k8sClient.Scheme(),
+				Recorder: NewFakeRecorder(),
+				Webhook:  FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 5}},
+			}
+			_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to update gametype"))
+		})
+	})
+
 	Context("Events", func() {
 		It("emits GameTypeAutoscalerInvalidTarget when the GameType does not exist", func() {
 			r, rec := newReconciler(FakeWebhook{})

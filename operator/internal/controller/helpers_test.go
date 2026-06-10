@@ -159,6 +159,21 @@ func (f FakeWebhook) SendScaleWebhookRequest(_ *gameserverv1alpha1.GameTypeAutos
 
 var _ autoscaler.Webhook = FakeWebhook{}
 
+// FakeWebhookCapture wraps FakeWebhook and records the objects it was called with.
+type FakeWebhookCapture struct {
+	FakeWebhook
+	CalledWithAutoscaler *gameserverv1alpha1.GameTypeAutoscaler
+	CalledWithGameType   *gameserverv1alpha1.GameType
+}
+
+func (f *FakeWebhookCapture) SendScaleWebhookRequest(a *gameserverv1alpha1.GameTypeAutoscaler, g *gameserverv1alpha1.GameType) (autoscaler.AutoscaleResponse, error) {
+	f.CalledWithAutoscaler = a
+	f.CalledWithGameType = g
+	return f.FakeWebhook.SendScaleWebhookRequest(a, g)
+}
+
+var _ autoscaler.Webhook = &FakeWebhookCapture{}
+
 // eventReasons returns the reason string from every event the recorder captured.
 func eventReasons(recorder *FakeRecorder) []string {
 	recorder.mu.Lock()
