@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 )
 
 var _ = Describe("Fleet Controller", func() {
@@ -507,6 +508,86 @@ var _ = Describe("Fleet Controller", func() {
 				remainingNames[i] = s.Name
 			}
 			Expect(remainingNames).NotTo(ContainElement(allowedName))
+		})
+	})
+
+	Context("Events", func() {
+		newRecordingReconciler := func() (*FleetReconciler, *FakeRecorder) {
+			rec := NewFakeRecorder()
+			return &FleetReconciler{
+				Client:   k8sClient,
+				Scheme:   k8sClient.Scheme(),
+				Recorder: rec,
+			}, rec
+		}
+
+		do := func(r *FleetReconciler, name string) {
+			_, err := r.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: name, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		It("emits FleetScaledUp when servers are created to meet desired replicas", func() {
+			const name = "fleet-ev-scaleup"
+			Expect(k8sClient.Create(context.Background(), makeFleet(name, ns, 2))).To(Succeed())
+			defer cleanupFleet(name)
+
+			Expect(reconcileFleet(name)).To(Succeed()) // finalizer
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonFleetScaledUp)))
+		})
+
+		It("emits FleetScaledDown when a server is removed to meet desired replicas", func() {
+			const name = "fleet-ev-scaledown"
+			Expect(k8sClient.Create(context.Background(), makeFleet(name, ns, 2))).To(Succeed())
+			defer cleanupFleet(name)
+
+			Expect(reconcileFleet(name)).To(Succeed()) // finalizer
+			Expect(reconcileFleet(name)).To(Succeed()) // scale to 2
+			Expect(serversForFleet(name)).To(HaveLen(2))
+
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: ns}, fleet)).To(Succeed())
+			fleet.Spec.Scaling.Replicas = 1
+			Expect(k8sClient.Update(context.Background(), fleet)).To(Succeed())
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonFleetScaledDown)))
+		})
+
+		It("emits FleetNotReady on the first reconcile where the Ready condition is set to False", func() {
+			const name = "fleet-ev-notready"
+			Expect(k8sClient.Create(context.Background(), makeFleet(name, ns, 1))).To(Succeed())
+			defer cleanupFleet(name)
+
+			Expect(reconcileFleet(name)).To(Succeed()) // finalizer (no conditions set yet)
+
+			r, rec := newRecordingReconciler()
+			do(r, name) // scales and syncs conditions; no ready replicas → FleetNotReady
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonFleetNotReady)))
+		})
+
+		It("emits FleetReady when all replicas become ready", func() {
+			const name = "fleet-ev-ready"
+			Expect(k8sClient.Create(context.Background(), makeFleet(name, ns, 1))).To(Succeed())
+			defer cleanupFleet(name)
+
+			Expect(reconcileFleet(name)).To(Succeed()) // finalizer
+			Expect(reconcileFleet(name)).To(Succeed()) // scale to 1, Ready=False stored in status
+
+			servers := serversForFleet(name)
+			Expect(servers).To(HaveLen(1))
+			server := servers[0].DeepCopy()
+			server.Status.Phase = gameserverv1alpha1.ServerPhaseReady
+			Expect(k8sClient.Status().Update(context.Background(), server)).To(Succeed())
+
+			r, rec := newRecordingReconciler()
+			do(r, name) // ReadyReplicas=1=Desired, Ready transitions False→True
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonFleetReady)))
 		})
 	})
 

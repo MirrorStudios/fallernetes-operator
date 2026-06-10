@@ -11,6 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 )
 
 var _ = Describe("GameType Controller", func() {
@@ -315,6 +316,108 @@ var _ = Describe("GameType Controller", func() {
 			Expect(gt.Status.ObservedGeneration).To(Equal(gt.Generation))
 		})
 	})
+
+	Context("Events", func() {
+		newRecordingReconciler := func() (*GameTypeReconciler, *FakeRecorder) {
+			rec := NewFakeRecorder()
+			return &GameTypeReconciler{
+				Client:   k8sClient,
+				Scheme:   k8sClient.Scheme(),
+				Recorder: rec,
+			}, rec
+		}
+
+		do := func(r *GameTypeReconciler, name string) {
+			_, err := r.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: name, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		It("emits GametypeFinalizerAdded on first reconcile", func() {
+			const name = "gt-ev-fin-add"
+			Expect(k8sClient.Create(context.Background(), makeGameType(name, ns, 1))).To(Succeed())
+			defer cleanupGameType(name)
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGametypeFinalizerAdded)))
+		})
+
+		It("emits GametypeFleetCreated when the initial fleet is created", func() {
+			const name = "gt-ev-fleet-create"
+			Expect(k8sClient.Create(context.Background(), makeGameType(name, ns, 1))).To(Succeed())
+			defer cleanupGameType(name)
+
+			Expect(reconcileGameType(name)).To(Succeed()) // finalizer
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGametypeFleetCreated)))
+		})
+
+		It("emits GametypeRollingUpdateStarted when a spec change triggers a new fleet", func() {
+			const name = "gt-ev-roll-start"
+			Expect(k8sClient.Create(context.Background(), makeGameType(name, ns, 1))).To(Succeed())
+			defer cleanupGameType(name)
+
+			Expect(reconcileGameType(name)).To(Succeed()) // finalizer
+			Expect(reconcileGameType(name)).To(Succeed()) // create fleet
+			Expect(reconcileGameType(name)).To(Succeed()) // sync status
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: ns}, gt)).To(Succeed())
+			patch := client.MergeFrom(gt.DeepCopy())
+			gt.Spec.FleetSpec.ServerSpec.Pod.Containers[0].Image = "game-server:v2"
+			Expect(k8sClient.Patch(context.Background(), gt, patch)).To(Succeed())
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGametypeRollingUpdateStarted)))
+		})
+
+		It("emits GametypeRollingUpdateComplete when the old fleet is pruned", func() {
+			const name = "gt-ev-roll-done"
+			Expect(k8sClient.Create(context.Background(), makeGameType(name, ns, 1))).To(Succeed())
+			defer cleanupGameType(name)
+
+			Expect(reconcileGameType(name)).To(Succeed()) // finalizer
+			Expect(reconcileGameType(name)).To(Succeed()) // create fleet
+			Expect(reconcileGameType(name)).To(Succeed()) // sync status
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: ns}, gt)).To(Succeed())
+			patch := client.MergeFrom(gt.DeepCopy())
+			gt.Spec.FleetSpec.ServerSpec.Pod.Containers[0].Image = "game-server:v2"
+			Expect(k8sClient.Patch(context.Background(), gt, patch)).To(Succeed())
+
+			Expect(reconcileGameType(name)).To(Succeed()) // creates new fleet (now 2 exist)
+			Expect(fleetsForGameType(name)).To(HaveLen(2))
+
+			// This reconcile: syncGameTypeStatus sees 2 fleets → handleUpdating deletes old fleet
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGametypeRollingUpdateComplete)))
+		})
+
+		It("emits GametypeFinalizerRemoved when the gametype is deleted", func() {
+			const name = "gt-ev-fin-rem"
+			Expect(k8sClient.Create(context.Background(), makeGameType(name, ns, 1))).To(Succeed())
+			defer cleanupGameType(name)
+
+			Expect(reconcileGameType(name)).To(Succeed()) // finalizer
+			Expect(reconcileGameType(name)).To(Succeed()) // create fleet
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: ns}, gt)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), gt)).To(Succeed())
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGametypeFinalizerRemoved)))
+		})
+	})
+
 
 	Context("Rolling update on pod spec change", func() {
 		const gtName = "gt-rolling-test"
