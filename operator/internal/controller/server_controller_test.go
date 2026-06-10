@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 )
 
 var _ = Describe("Server Controller", func() {
@@ -431,6 +432,99 @@ var _ = Describe("Server Controller", func() {
 			server := &gameserverv1alpha1.Server{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
 			Expect(server.Status.PodPhase).To(Equal(corev1.PodPending))
+		})
+	})
+
+	Context("Events", func() {
+		newRecordingReconciler := func() (*ServerReconciler, *FakeRecorder) {
+			rec := NewFakeRecorder()
+			return &ServerReconciler{
+				Client:          k8sClient,
+				Scheme:          k8sClient.Scheme(),
+				Recorder:        rec,
+				DeletionAllowed: allowed,
+			}, rec
+		}
+
+		do := func(r *ServerReconciler, name string) {
+			_, err := r.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: name, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		It("emits ServerFinalizerAdded on first reconcile", func() {
+			const name = "server-ev-fin-add"
+			Expect(k8sClient.Create(context.Background(), makeServer(name, ns))).To(Succeed())
+			defer cleanupServer(name)
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonServerFinalizerAdded)))
+		})
+
+		It("emits ServerPodCreated when the pod is first created", func() {
+			const name = "server-ev-pod-create"
+			Expect(k8sClient.Create(context.Background(), makeServer(name, ns))).To(Succeed())
+			defer cleanupServer(name)
+
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // adds server finalizer
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonServerPodCreated)))
+		})
+
+		It("emits ServerPodFinalizerAdded when the pod finalizer is applied", func() {
+			const name = "server-ev-pod-fin"
+			Expect(k8sClient.Create(context.Background(), makeServer(name, ns))).To(Succeed())
+			defer cleanupServer(name)
+
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // server finalizer
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // pod created
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonServerPodFinalizerAdded)))
+		})
+
+		It("emits ServerReady when pod transitions from Pending to Running", func() {
+			const name = "server-ev-ready"
+			Expect(k8sClient.Create(context.Background(), makeServer(name, ns))).To(Succeed())
+			defer cleanupServer(name)
+
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // server finalizer
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // pod created, phase=Pending
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // pod finalizer
+
+			pod := &corev1.Pod{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: name + "-pod", Namespace: ns}, pod)).To(Succeed())
+			pod.Status.Phase = corev1.PodRunning
+			Expect(k8sClient.Status().Update(context.Background(), pod)).To(Succeed())
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonServerReady)))
+		})
+
+		It("emits ServerPodFinalizerRemoved and ServerFinalizerRemoved during deletion", func() {
+			const name = "server-ev-del"
+			Expect(k8sClient.Create(context.Background(), makeServer(name, ns))).To(Succeed())
+			defer cleanupServer(name)
+
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // server finalizer
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // pod created
+			Expect(reconcileServer(name, allowed)).To(Succeed()) // pod finalizer
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: name, Namespace: ns}, server)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), server)).To(Succeed())
+
+			r, rec := newRecordingReconciler()
+			do(r, name)
+			reasons := eventReasons(rec)
+			Expect(reasons).To(ContainElement(string(utils.ReasonServerPodFinalizerRemoved)))
+			Expect(reasons).To(ContainElement(string(utils.ReasonServerFinalizerRemoved)))
 		})
 	})
 

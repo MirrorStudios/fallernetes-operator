@@ -159,6 +159,17 @@ func (f FakeWebhook) SendScaleWebhookRequest(_ *gameserverv1alpha1.GameTypeAutos
 
 var _ autoscaler.Webhook = FakeWebhook{}
 
+// eventReasons returns the reason string from every event the recorder captured.
+func eventReasons(recorder *FakeRecorder) []string {
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	reasons := make([]string, len(recorder.Events))
+	for i, e := range recorder.Events {
+		reasons[i] = e.Reason
+	}
+	return reasons
+}
+
 // Resource factory helpers
 
 func defaultPort() *int {

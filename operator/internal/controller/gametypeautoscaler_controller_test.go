@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -10,8 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/MirrorStudios/fallernetes-operator/internal/autoscaler"
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/autoscaler"
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 )
 
 var _ = Describe("GameTypeAutoscaler Controller", func() {
@@ -41,17 +43,19 @@ var _ = Describe("GameTypeAutoscaler Controller", func() {
 		}
 	}
 
-	newReconciler := func(webhook autoscaler.Webhook) *GameTypeAutoscalerReconciler {
+	newReconciler := func(webhook autoscaler.Webhook) (*GameTypeAutoscalerReconciler, *FakeRecorder) {
+		rec := NewFakeRecorder()
 		return &GameTypeAutoscalerReconciler{
 			Client:   k8sClient,
 			Scheme:   k8sClient.Scheme(),
-			Recorder: NewFakeRecorder(),
+			Recorder: rec,
 			Webhook:  webhook,
-		}
+		}, rec
 	}
 
 	reconcileAutoscaler := func(webhook autoscaler.Webhook) (reconcile.Result, error) {
-		return newReconciler(webhook).Reconcile(context.Background(), reconcile.Request{
+		r, _ := newReconciler(webhook)
+		return r.Reconcile(context.Background(), reconcile.Request{
 			NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
 		})
 	}
@@ -99,9 +103,53 @@ var _ = Describe("GameTypeAutoscaler Controller", func() {
 		})
 
 		It("requeues after one minute when the webhook returns an error", func() {
-			result, err := reconcileAutoscaler(FakeWebhook{Err: fmt.Errorf("webhook unavailable")})
+			result, err := reconcileAutoscaler(FakeWebhook{Err: errors.New("webhook unavailable")})
 			Expect(err).To(HaveOccurred())
 			Expect(result.RequeueAfter).To(Equal(time.Minute))
+		})
+	})
+
+	Context("Events", func() {
+		It("emits GameTypeAutoscalerInvalidTarget when the GameType does not exist", func() {
+			r, rec := newReconciler(FakeWebhook{})
+			_, err := r.Reconcile(context.Background(), reconcile.Request{
+				NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGameTypeAutoscalerInvalidTarget)))
+		})
+
+		Context("with an existing GameType", func() {
+			BeforeEach(func() {
+				Expect(k8sClient.Create(context.Background(), makeGameType(gametypeName, ns, 2))).To(Succeed())
+			})
+
+			It("emits GameAutoscalerWebhook warning when the webhook returns an error", func() {
+				r, rec := newReconciler(FakeWebhook{Err: errors.New("webhook down")})
+				_, err := r.Reconcile(context.Background(), reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+				})
+				Expect(err).To(HaveOccurred())
+				Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGameTypeAutoscalerWebhook)))
+			})
+
+			It("emits GameAutoscalerScale when the webhook requests a scale", func() {
+				r, rec := newReconciler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 4}})
+				_, err := r.Reconcile(context.Background(), reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(eventReasons(rec)).To(ContainElement(string(utils.ReasonGameTypeAutoscalerScale)))
+			})
+
+			It("emits no scale event when the webhook says no scale is needed", func() {
+				r, rec := newReconciler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: false}})
+				_, err := r.Reconcile(context.Background(), reconcile.Request{
+					NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},
+				})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(eventReasons(rec)).NotTo(ContainElement(string(utils.ReasonGameTypeAutoscalerScale)))
+			})
 		})
 	})
 })
