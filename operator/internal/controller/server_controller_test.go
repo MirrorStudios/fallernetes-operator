@@ -323,7 +323,7 @@ var _ = Describe("Server Controller", func() {
 				p := &corev1.Pod{}
 				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName + "-pod", Namespace: ns}, p)
 				return err != nil && client.IgnoreNotFound(err) == nil
-			}).Should(BeTrue())
+			}, "10s", "200ms").Should(BeTrue())
 		})
 
 		It("sets Phase=Pending and initial conditions (Unknown) right after pod creation", func() {
@@ -372,6 +372,9 @@ var _ = Describe("Server Controller", func() {
 		It("sets Phase=Ready and Ready=True when pod is Running with a NodeName", func() {
 			// Pre-create the pod with NodeName set. Kubernetes forbids patching spec.nodeName on
 			// an existing pod, but allows it to be set at creation time.
+			// TerminationGracePeriodSeconds must be 0: envtest has no kubelet, so a pod bound to
+			// a node with the default 30s grace period would get stuck in Terminating on cleanup.
+			gracePeriod := int64(0)
 			pod := &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      serverName + "-pod",
@@ -379,8 +382,9 @@ var _ = Describe("Server Controller", func() {
 					Labels:    map[string]string{"server": serverName},
 				},
 				Spec: corev1.PodSpec{
-					NodeName:   "fake-node",
-					Containers: []corev1.Container{{Name: "game-server", Image: "test:latest"}},
+					NodeName:                      "fake-node",
+					TerminationGracePeriodSeconds: &gracePeriod,
+					Containers:                    []corev1.Container{{Name: "game-server", Image: "test:latest"}},
 				},
 			}
 			Expect(k8sClient.Create(context.Background(), pod)).To(Succeed())
