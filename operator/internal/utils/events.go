@@ -42,7 +42,7 @@ const (
 
 	// GameTypeAutoscaler reasons
 	ReasonGameTypeAutoscalerInitialized            EventReason = "GameAutoscalerInitialized"
-	ReasonGameTypeAutoscalerInvalidServer          EventReason = "GameAutoscalerInvalidServer"
+	ReasonGameTypeAutoscalerInvalidTarget          EventReason = "GameAutoscalerInvalidTarget"
 	ReasonGameTypeAutoscalerInvalidAutoscalePolicy EventReason = "GameautoscalerInvalidAutoscalePolicy"
 	ReasonGameTypeAutoscalerInvalidSyncType        EventReason = "GameautoscalerInvalidSyncType"
 	ReasonGameTypeAutoscalerWebhook                EventReason = "GameautoscalerWebhook"

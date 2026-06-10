@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/autoscaler"
 	"github.com/MirrorStudios/fallernetes-operator/internal/controller"
 	webhookv1alpha1 "github.com/MirrorStudios/fallernetes-operator/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
@@ -199,6 +200,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorderFor("gametypeautoscaler"),
+		Webhook:  autoscaler.ProductionWebhookRequest{},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "gametypeautoscaler")
 		os.Exit(1)

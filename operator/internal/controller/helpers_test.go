@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/autoscaler"
 	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -145,6 +146,18 @@ func (m MapDeletion) IsDeleteAllowed(_ context.Context, server *gameserverv1alph
 }
 
 var _ sidecar.FleetDeletionChecker = MapDeletion{}
+
+// FakeWebhook implements autoscaler.Webhook for testing.
+type FakeWebhook struct {
+	Response autoscaler.AutoscaleResponse
+	Err      error
+}
+
+func (f FakeWebhook) SendScaleWebhookRequest(_ *gameserverv1alpha1.GameTypeAutoscaler, _ *gameserverv1alpha1.GameType) (autoscaler.AutoscaleResponse, error) {
+	return f.Response, f.Err
+}
+
+var _ autoscaler.Webhook = FakeWebhook{}
 
 // Resource factory helpers
 
