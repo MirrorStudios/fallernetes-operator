@@ -52,8 +52,9 @@ var _ = Describe("GameTypeAutoscaler Controller", func() {
 
 	It("reconciles without error (stub controller)", func() {
 		reconciler := &GameTypeAutoscalerReconciler{
-			Client: k8sClient,
-			Scheme: k8sClient.Scheme(),
+			Client:   k8sClient,
+			Scheme:   k8sClient.Scheme(),
+			Recorder: NewFakeRecorder(),
 		}
 		_, err := reconciler.Reconcile(context.Background(), reconcile.Request{
 			NamespacedName: types.NamespacedName{Name: autoscalerName, Namespace: ns},

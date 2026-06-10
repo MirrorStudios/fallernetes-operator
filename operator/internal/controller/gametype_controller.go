@@ -65,11 +65,11 @@ func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		logger.Info("Adding finalizer to gametype")
 		controllerutil.AddFinalizer(gametype, TypeFinalizer)
 		if err := r.Update(ctx, gametype); err != nil {
-			r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeInitialized, "failed to add finalizers: %s", err)
+			r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeFinalizerAdded, "failed to add finalizers: %s", err)
 			logger.Error(err, "Failed to add finalizer to gametype")
 			return ctrl.Result{}, err
 		}
-		r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeInitialized, "Added finalizers to game")
+		r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeFinalizerAdded, "Added finalizers to game")
 		return ctrl.Result{}, nil
 	}
 
@@ -77,7 +77,7 @@ func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if gametype.DeletionTimestamp != nil || !gametype.GetDeletionTimestamp().IsZero() {
 		logger.Info("Handling deletion of gametype")
 		if err := r.handleDeletion(ctx, gametype, logger); err != nil {
-			r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeInitialized, "failed to remove finalizers: %s", err)
+			r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeFinalizerRemoved, "failed to remove finalizers: %s", err)
 			logger.Error(err, "Failed to handle gametype deletion")
 			return ctrl.Result{}, err
 		}
@@ -113,7 +113,27 @@ func (r *GameTypeReconciler) syncGameTypeStatus(ctx context.Context, gametype *g
 		gametype.Status.ReadyReplicas = 0
 	}
 
+	var oldReadyStatus metav1.ConditionStatus
+	if c := meta.FindStatusCondition(gametype.Status.Conditions, gameserverv1alpha1.ConditionReady); c != nil {
+		oldReadyStatus = c.Status
+	}
+	var oldRollingUpdateStatus metav1.ConditionStatus
+	if c := meta.FindStatusCondition(gametype.Status.Conditions, gameserverv1alpha1.ConditionRollingUpdate); c != nil {
+		oldRollingUpdateStatus = c.Status
+	}
+
 	r.syncGameTypeConditions(gametype)
+
+	if newReady := meta.FindStatusCondition(gametype.Status.Conditions, gameserverv1alpha1.ConditionReady); newReady != nil {
+		if oldReadyStatus != metav1.ConditionTrue && newReady.Status == metav1.ConditionTrue {
+			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeReady, "GameType is ready")
+		}
+	}
+	if newRU := meta.FindStatusCondition(gametype.Status.Conditions, gameserverv1alpha1.ConditionRollingUpdate); newRU != nil {
+		if oldRollingUpdateStatus == metav1.ConditionTrue && newRU.Status == metav1.ConditionFalse {
+			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeRollingUpdateComplete, "Rolling update complete")
+		}
+	}
 
 	return r.Status().Update(ctx, gametype)
 }
@@ -175,13 +195,13 @@ func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *games
 		if _, err := r.handleCreation(ctx, gametype, logger); err != nil {
 			return ctrl.Result{}, err
 		}
-		r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeInitialized, "Created initial fleet")
+		r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeFleetCreated, "Created initial fleet")
 		return ctrl.Result{}, nil
 	}
 	if len(fleets.Items) == 1 {
 		fleet := fleets.Items[0]
 		if !gameserverv1alpha1.AreFleetsPodsEqual(&fleet.Spec, &gametype.Spec.FleetSpec) {
-			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeSpecUpdated, "Creating new fleet")
+			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeRollingUpdateStarted, "Creating new fleet for rolling update")
 			return r.handleCreation(ctx, gametype, logger)
 		} else if gametype.Spec.FleetSpec.Scaling.Replicas != fleet.Spec.Scaling.Replicas {
 			fleet.Spec.Scaling.Replicas = gametype.Spec.FleetSpec.Scaling.Replicas
@@ -196,10 +216,10 @@ func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *games
 			fleet := &fleets.Items[i]
 			if !gameserverv1alpha1.AreFleetsPodsEqual(&fleet.Spec, &gametype.Spec.FleetSpec) &&
 				fleet.GetDeletionTimestamp() == nil {
-				r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeSpecUpdated, "Deleting extra fleet")
 				if err := r.Delete(ctx, fleet); err != nil {
 					return ctrl.Result{}, err
 				}
+				r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeRollingUpdateComplete, "Old fleet pruned, rolling update complete")
 				break
 			}
 		}
@@ -219,7 +239,7 @@ func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *games
 		for _, fleet := range fleets.Items {
 			r.emitEventf(gametype, corev1.EventTypeNormal, utils.ReasonGameTypeDeleting, "Deleting fleet %s", fleet.Name)
 			if err := r.Delete(ctx, &fleet); err != nil {
-				r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeServersDeleted, "Failed to delete fleet %s", fleet.Name)
+				r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeFleetDeletionFailed, "Failed to delete fleet %s", fleet.Name)
 				return err
 			}
 		}
@@ -232,7 +252,7 @@ func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *games
 			if err := r.Update(ctx, gametype); err != nil {
 				return err
 			}
-			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeServersDeleted, "Removed finalizer")
+			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeFinalizerRemoved, "Finalizer removed, all fleets deleted")
 		}
 	}
 	return nil
@@ -242,7 +262,7 @@ func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *games
 func (r *GameTypeReconciler) handleCreation(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) (ctrl.Result, error) {
 	fleet := builders.GetFleetObjectForType(gametype)
 	if err := r.Create(ctx, fleet); err != nil {
-		r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeReplicasUpdated, "Failed to create new fleet %s", err)
+		r.emitEventf(gametype, corev1.EventTypeWarning, utils.ReasonGametypeFleetCreationFailed, "Failed to create new fleet: %s", err)
 		logger.Error(err, "failed to create a new fleet for gametype")
 		return ctrl.Result{}, err
 	}

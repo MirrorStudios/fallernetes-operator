@@ -21,9 +21,12 @@ import (
 	"fmt"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -32,7 +35,8 @@ import (
 // GameTypeAutoscalerReconciler reconciles a GameTypeAutoscaler object
 type GameTypeAutoscalerReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypeautoscalers,verbs=get;list;watch;create;update;patch;delete
@@ -61,6 +65,7 @@ func (r *GameTypeAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.R
 			Message:            "Autoscaler has not yet been evaluated",
 			ObservedGeneration: autoscaler.Generation,
 		})
+		r.emitEvent(autoscaler, corev1.EventTypeNormal, utils.ReasonGameTypeAutoscalerInitialized, "Autoscaler initialized")
 	}
 	if meta.FindStatusCondition(autoscaler.Status.Conditions, gameserverv1alpha1.ConditionScaling) == nil {
 		meta.SetStatusCondition(&autoscaler.Status.Conditions, metav1.Condition{
@@ -85,4 +90,12 @@ func (r *GameTypeAutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error 
 		For(&gameserverv1alpha1.GameTypeAutoscaler{}).
 		Named("gametypeautoscaler").
 		Complete(r)
+}
+
+func (r *GameTypeAutoscalerReconciler) emitEvent(object runtime.Object, eventtype string, reason utils.EventReason, message string) {
+	r.Recorder.Event(object, eventtype, string(reason), message)
+}
+
+func (r *GameTypeAutoscalerReconciler) emitEventf(object runtime.Object, eventtype string, reason utils.EventReason, message string, args ...interface{}) {
+	r.Recorder.Eventf(object, eventtype, string(reason), message, args...)
 }

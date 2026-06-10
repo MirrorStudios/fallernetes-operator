@@ -97,9 +97,23 @@ func (r *FleetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		fleet.Status.ReadyReplicas = countReadyServers(servers.Items)
 	}
 
+	var oldReadyStatus metav1.ConditionStatus
+	if c := meta.FindStatusCondition(fleet.Status.Conditions, gameserverv1alpha1.ConditionReady); c != nil {
+		oldReadyStatus = c.Status
+	}
+
 	r.syncFleetConditions(fleet)
 
+	if newReady := meta.FindStatusCondition(fleet.Status.Conditions, gameserverv1alpha1.ConditionReady); newReady != nil && oldReadyStatus != newReady.Status {
+		if newReady.Status == metav1.ConditionTrue {
+			r.emitEventf(fleet, corev1.EventTypeNormal, utils.ReasonFleetReady, "Fleet ready: all %d replicas are healthy", fleet.Status.DesiredReplicas)
+		} else {
+			r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetNotReady, "Fleet not ready: %d/%d replicas ready", fleet.Status.ReadyReplicas, fleet.Status.DesiredReplicas)
+		}
+	}
+
 	if err := r.Status().Update(ctx, fleet); err != nil {
+		r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetUpdateFailed, "Failed to update fleet status: %s", err)
 		return ctrl.Result{}, fmt.Errorf("failed to update Fleet status resource: %w", err)
 	}
 	return ctrl.Result{}, nil
@@ -196,11 +210,11 @@ func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserve
 			server := builders.CreateServerForFleet(*fleet, namespace)
 			err := r.Create(ctx, server)
 			if err != nil {
-				r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetScaleServers, "Failed to create a server: %s", err)
+				r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetUpdateFailed, "Failed to create a server: %s", err)
 				return err
 			}
 		}
-		r.emitEventf(fleet, corev1.EventTypeNormal, utils.ReasonFleetScaleServers, "Scaled servers up to %d", fleet.Spec.Scaling.Replicas)
+		r.emitEventf(fleet, corev1.EventTypeNormal, utils.ReasonFleetScaledUp, "Scaled servers up to %d", fleet.Spec.Scaling.Replicas)
 	}
 	if fleet.Status.Replicas > fleet.Spec.Scaling.Replicas {
 		servers, err := utils.GetServersForFleet(ctx, r.Client, fleet)
@@ -212,10 +226,10 @@ func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserve
 			return err
 		}
 		if err := r.Client.Delete(ctx, server); err != nil {
-			r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetScaleServers, "Failed to delete a server: %s", err)
+			r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetUpdateFailed, "Failed to delete a server: %s", err)
 			return err
 		}
-		r.emitEventf(fleet, corev1.EventTypeNormal, utils.ReasonFleetScaleServers, "Scaled servers down to %d", fleet.Spec.Scaling.Replicas)
+		r.emitEventf(fleet, corev1.EventTypeNormal, utils.ReasonFleetScaledDown, "Scaled servers down to %d", fleet.Spec.Scaling.Replicas)
 	}
 	return nil
 }
