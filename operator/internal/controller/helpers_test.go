@@ -211,6 +211,16 @@ func makeGameType(name, ns string, replicas int32) *gameserverv1alpha1.GameType 
 	}
 }
 
+// findCond finds a condition by type in a slice, returning nil if not found.
+func findCond(conditions []metav1.Condition, condType string) *metav1.Condition {
+	for i := range conditions {
+		if conditions[i].Type == condType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}
+
 // clearFinalizers removes all finalizers from obj, silently ignoring missing objects.
 func clearFinalizers(obj client.Object) {
 	if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {

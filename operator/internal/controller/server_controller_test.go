@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -301,6 +302,111 @@ var _ = Describe("Server Controller", func() {
 
 			_, err = getPod(serverName)
 			Expect(err).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("Status and conditions", func() {
+		const serverName = "server-status-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeServer(serverName, ns))).To(Succeed())
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // adds server finalizer
+		})
+
+		AfterEach(func() { cleanupServer(serverName) })
+
+		It("sets Phase=Pending and initial conditions (Unknown) right after pod creation", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // creates pod, writes pending status
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+
+			Expect(server.Status.Phase).To(Equal(gameserverv1alpha1.ServerPhasePending))
+			Expect(server.Status.ObservedGeneration).To(Equal(server.Generation))
+
+			readyCond := findCond(server.Status.Conditions, gameserverv1alpha1.ConditionReady)
+			Expect(readyCond).NotTo(BeNil())
+			Expect(readyCond.Status).To(Equal(metav1.ConditionUnknown))
+			Expect(readyCond.Reason).To(Equal(gameserverv1alpha1.ReasonPodNotRunning))
+
+			scheduledCond := findCond(server.Status.Conditions, gameserverv1alpha1.ConditionPodScheduled)
+			Expect(scheduledCond).NotTo(BeNil())
+			Expect(scheduledCond.Status).To(Equal(metav1.ConditionUnknown))
+			Expect(scheduledCond.Reason).To(Equal(gameserverv1alpha1.ReasonPodPending))
+		})
+
+		It("reflects non-running pod state after full status sync", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // creates pod
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // adds pod finalizer
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // calls syncServerStatus
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+
+			Expect(server.Status.Phase).To(Equal(gameserverv1alpha1.ServerPhasePending))
+
+			// Pod has no NodeName in envtest, so PodScheduled=False
+			scheduledCond := findCond(server.Status.Conditions, gameserverv1alpha1.ConditionPodScheduled)
+			Expect(scheduledCond).NotTo(BeNil())
+			Expect(scheduledCond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(scheduledCond.Reason).To(Equal(gameserverv1alpha1.ReasonPodNotScheduled))
+
+			// Pod is not Running, so Ready=False
+			readyCond := findCond(server.Status.Conditions, gameserverv1alpha1.ConditionReady)
+			Expect(readyCond).NotTo(BeNil())
+			Expect(readyCond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(readyCond.Reason).To(Equal(gameserverv1alpha1.ReasonPodNotRunning))
+		})
+
+		It("sets Phase=Ready and Ready=True when pod is Running with a NodeName", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // creates pod
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // adds pod finalizer
+
+			pod := &corev1.Pod{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName + "-pod", Namespace: ns}, pod)).To(Succeed())
+
+			// Simulate scheduler assigning a node
+			patch := client.MergeFrom(pod.DeepCopy())
+			pod.Spec.NodeName = "fake-node"
+			Expect(k8sClient.Patch(context.Background(), pod, patch)).To(Succeed())
+
+			// Simulate kubelet marking the pod as Running
+			pod.Status.Phase = corev1.PodRunning
+			Expect(k8sClient.Status().Update(context.Background(), pod)).To(Succeed())
+
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // calls syncServerStatus
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+
+			Expect(server.Status.Phase).To(Equal(gameserverv1alpha1.ServerPhaseReady))
+			Expect(server.Status.PodPhase).To(Equal(corev1.PodRunning))
+
+			readyCond := findCond(server.Status.Conditions, gameserverv1alpha1.ConditionReady)
+			Expect(readyCond).NotTo(BeNil())
+			Expect(readyCond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(readyCond.Reason).To(Equal(gameserverv1alpha1.ReasonPodRunning))
+
+			scheduledCond := findCond(server.Status.Conditions, gameserverv1alpha1.ConditionPodScheduled)
+			Expect(scheduledCond).NotTo(BeNil())
+			Expect(scheduledCond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(scheduledCond.Reason).To(Equal(gameserverv1alpha1.ReasonPodScheduled))
+		})
+
+		It("reflects the pod's current phase in PodPhase", func() {
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // creates pod
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // adds pod finalizer
+
+			pod := &corev1.Pod{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName + "-pod", Namespace: ns}, pod)).To(Succeed())
+			pod.Status.Phase = corev1.PodPending
+			Expect(k8sClient.Status().Update(context.Background(), pod)).To(Succeed())
+
+			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // calls syncServerStatus
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(server.Status.PodPhase).To(Equal(corev1.PodPending))
 		})
 	})
 

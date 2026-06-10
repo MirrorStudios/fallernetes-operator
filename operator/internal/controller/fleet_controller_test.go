@@ -6,6 +6,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -378,6 +379,78 @@ var _ = Describe("Fleet Controller", func() {
 				remainingNames[i] = s.Name
 			}
 			Expect(remainingNames).NotTo(ContainElement(newest.Name))
+		})
+	})
+
+	Context("Status fields and conditions", func() {
+		const fleetName = "fleet-status-cond-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeFleet(fleetName, ns, 2))).To(Succeed())
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // adds finalizer
+			Expect(reconcileFleet(fleetName)).To(Succeed()) // scales to 2 and syncs status
+		})
+
+		AfterEach(func() { cleanupFleet(fleetName) })
+
+		It("sets DesiredReplicas to the spec value", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			Expect(fleet.Status.DesiredReplicas).To(Equal(int32(2)))
+		})
+
+		It("sets ObservedGeneration", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			Expect(fleet.Status.ObservedGeneration).To(Equal(fleet.Generation))
+		})
+
+		It("sets all three conditions after reconcile", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			Expect(findCond(fleet.Status.Conditions, gameserverv1alpha1.ConditionReady)).NotTo(BeNil())
+			Expect(findCond(fleet.Status.Conditions, gameserverv1alpha1.ConditionAvailable)).NotTo(BeNil())
+			Expect(findCond(fleet.Status.Conditions, gameserverv1alpha1.ConditionScaling)).NotTo(BeNil())
+		})
+
+		It("sets Scaling=False when replica count matches desired", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			cond := findCond(fleet.Status.Conditions, gameserverv1alpha1.ConditionScaling)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(gameserverv1alpha1.ReasonAtDesiredCount))
+		})
+
+		It("sets Ready=False when no servers are in the Ready phase", func() {
+			// In envtest, pods never transition to Running on their own, so ReadyReplicas=0.
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			cond := findCond(fleet.Status.Conditions, gameserverv1alpha1.ConditionReady)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+		})
+
+		It("sets Available=False when no servers are in the Ready phase", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			cond := findCond(fleet.Status.Conditions, gameserverv1alpha1.ConditionAvailable)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(gameserverv1alpha1.ReasonNoReplicas))
+		})
+
+		It("updates DesiredReplicas after spec change", func() {
+			fleet := &gameserverv1alpha1.Fleet{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			patch := client.MergeFrom(fleet.DeepCopy())
+			fleet.Spec.Scaling.Replicas = 5
+			Expect(k8sClient.Patch(context.Background(), fleet, patch)).To(Succeed())
+
+			Expect(reconcileFleet(fleetName)).To(Succeed())
+
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
+			Expect(fleet.Status.DesiredReplicas).To(Equal(int32(5)))
 		})
 	})
 
