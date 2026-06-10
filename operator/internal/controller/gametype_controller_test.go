@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -99,7 +100,7 @@ var _ = Describe("GameType Controller", func() {
 
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetName).NotTo(BeEmpty())
+			Expect(gt.Status.ActiveFleetName).NotTo(BeEmpty())
 		})
 	})
 
@@ -144,7 +145,7 @@ var _ = Describe("GameType Controller", func() {
 
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetName).NotTo(BeEmpty())
+			Expect(gt.Status.ActiveFleetName).NotTo(BeEmpty())
 		})
 	})
 
@@ -215,23 +216,24 @@ var _ = Describe("GameType Controller", func() {
 
 		AfterEach(func() { cleanupGameType(gtName) })
 
-		It("reflects the initial replica count in status", func() {
+		It("sets TotalFleets and ActiveFleetName after status sync", func() {
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetReplicas).To(Equal(int32(2)))
+			Expect(gt.Status.TotalFleets).To(Equal(int32(1)))
+			Expect(gt.Status.ActiveFleetName).NotTo(BeEmpty())
 		})
 
-		It("updates status after replicas are changed", func() {
+		It("fleet spec replicas are updated when gametype spec changes", func() {
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
 			gt.Spec.FleetSpec.Scaling.Replicas = 4
 			Expect(k8sClient.Update(context.Background(), gt)).To(Succeed())
 
 			Expect(reconcileGameType(gtName)).To(Succeed()) // propagate to fleet
-			Expect(reconcileGameType(gtName)).To(Succeed()) // sync status back
 
-			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetReplicas).To(Equal(int32(4)))
+			fleets := fleetsForGameType(gtName)
+			Expect(fleets).NotTo(BeEmpty())
+			Expect(fleets[0].Spec.Scaling.Replicas).To(Equal(int32(4)))
 		})
 	})
 
@@ -253,6 +255,64 @@ var _ = Describe("GameType Controller", func() {
 			Expect(reconcileGameType(gtName)).To(Succeed())
 
 			Expect(fleetsForGameType(gtName)).To(HaveLen(1))
+		})
+	})
+
+	Context("Conditions", func() {
+		const gtName = "gt-cond-test"
+
+		BeforeEach(func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gtName, ns, 2))).To(Succeed())
+			Expect(reconcileGameType(gtName)).To(Succeed()) // adds finalizer
+			Expect(reconcileGameType(gtName)).To(Succeed()) // creates fleet
+			Expect(reconcileGameType(gtName)).To(Succeed()) // syncs status and conditions
+		})
+
+		AfterEach(func() { cleanupGameType(gtName) })
+
+		It("sets Ready=False when no replicas are ready", func() {
+			// In envtest, pods never transition to Running, so ReadyReplicas remains 0.
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+
+			cond := findCond(gt.Status.Conditions, gameserverv1alpha1.ConditionReady)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+		})
+
+		It("sets RollingUpdate=False when only one fleet exists", func() {
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+
+			cond := findCond(gt.Status.Conditions, gameserverv1alpha1.ConditionRollingUpdate)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+			Expect(cond.Reason).To(Equal(gameserverv1alpha1.ReasonNoRollout))
+		})
+
+		It("sets RollingUpdate=True while two fleets coexist during a rolling update", func() {
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			patch := client.MergeFrom(gt.DeepCopy())
+			gt.Spec.FleetSpec.ServerSpec.Pod.Containers[0].Image = "game-server:v99"
+			Expect(k8sClient.Patch(context.Background(), gt, patch)).To(Succeed())
+
+			Expect(reconcileGameType(gtName)).To(Succeed()) // handleUpdating creates the second fleet
+			// Second reconcile: syncGameTypeStatus sees both fleets and persists RollingUpdate=True,
+			// then handleUpdating prunes the old fleet.
+			Expect(reconcileGameType(gtName)).To(Succeed())
+
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			cond := findCond(gt.Status.Conditions, gameserverv1alpha1.ConditionRollingUpdate)
+			Expect(cond).NotTo(BeNil())
+			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
+			Expect(cond.Reason).To(Equal(gameserverv1alpha1.ReasonRolloutInProgress))
+		})
+
+		It("sets ObservedGeneration on every reconcile", func() {
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Status.ObservedGeneration).To(Equal(gt.Generation))
 		})
 	})
 

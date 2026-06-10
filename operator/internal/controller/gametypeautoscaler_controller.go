@@ -18,13 +18,15 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
 )
 
 // GameTypeAutoscalerReconciler reconciles a GameTypeAutoscaler object
@@ -37,19 +39,42 @@ type GameTypeAutoscalerReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypeautoscalers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypeautoscalers/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the GameTypeAutoscaler object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
 func (r *GameTypeAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = logf.FromContext(ctx)
 
-	// TODO(user): your logic here
+	autoscaler := &gameserverv1alpha1.GameTypeAutoscaler{}
+	if err := r.Get(ctx, req.NamespacedName, autoscaler); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to get GameTypeAutoscaler: %w", err)
+		}
+		return ctrl.Result{}, nil
+	}
+
+	autoscaler.Status.ObservedGeneration = autoscaler.Generation
+
+	// Initialise conditions to Unknown if they have not been set yet.
+	if meta.FindStatusCondition(autoscaler.Status.Conditions, gameserverv1alpha1.ConditionReady) == nil {
+		meta.SetStatusCondition(&autoscaler.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionUnknown,
+			Reason:             gameserverv1alpha1.ReasonInitializing,
+			Message:            "Autoscaler has not yet been evaluated",
+			ObservedGeneration: autoscaler.Generation,
+		})
+	}
+	if meta.FindStatusCondition(autoscaler.Status.Conditions, gameserverv1alpha1.ConditionScaling) == nil {
+		meta.SetStatusCondition(&autoscaler.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionScaling,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonNotScaling,
+			Message:            "No scale action has been taken",
+			ObservedGeneration: autoscaler.Generation,
+		})
+	}
+
+	if err := r.Status().Update(ctx, autoscaler); err != nil {
+		return ctrl.Result{}, fmt.Errorf("failed to update GameTypeAutoscaler status: %w", err)
+	}
 
 	return ctrl.Result{}, nil
 }

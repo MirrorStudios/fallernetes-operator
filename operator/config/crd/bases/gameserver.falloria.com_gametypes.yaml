@@ -14,7 +14,20 @@ spec:
     singular: gametype
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.activeFleetName
+      name: ActiveFleet
+      type: string
+    - jsonPath: .status.replicas
+      name: Replicas
+      type: integer
+    - jsonPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: GameType is the Schema for the gametypes API
@@ -8622,6 +8635,8 @@ spec:
           status:
             description: status defines the observed state of GameType
             properties:
+              activeFleetName:
+                type: string
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -8678,15 +8693,22 @@ spec:
                   - type
                   type: object
                 type: array
-              fleetName:
-                type: string
-              fleetReplicas:
-                default: 0
+              observedGeneration:
+                format: int64
+                type: integer
+              readyReplicas:
+                format: int32
+                type: integer
+              replicas:
+                format: int32
+                type: integer
+              totalFleets:
                 format: int32
                 type: integer
             required:
-            - fleetName
-            - fleetReplicas
+            - readyReplicas
+            - replicas
+            - totalFleets
             type: object
         required:
         - spec

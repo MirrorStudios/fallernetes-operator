@@ -76,12 +76,20 @@ type GameTypeAutoscalerSpec struct {
 
 // GameTypeAutoscalerStatus defines the observed state of GameTypeAutoscaler.
 type GameTypeAutoscalerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Conditions         []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	LastScaleTime      *metav1.Time       `json:"lastScaleTime,omitempty"`
+	CurrentReplicas    int32              `json:"currentReplicas"`
+	DesiredReplicas    int32              `json:"desiredReplicas"`
+	LastScaleReason    string             `json:"lastScaleReason,omitempty"`
+	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Current",type="integer",JSONPath=".status.currentReplicas"
+// +kubebuilder:printcolumn:name="Desired",type="integer",JSONPath=".status.desiredReplicas"
+// +kubebuilder:printcolumn:name="LastScaleTime",type="date",JSONPath=".status.lastScaleTime"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // GameTypeAutoscaler is the Schema for the gametypeautoscalers API.
 type GameTypeAutoscaler struct {

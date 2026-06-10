@@ -36,7 +36,16 @@ var (
 	managerImage = "example.com/operator:v0.0.1"
 	// shouldCleanupCertManager tracks whether CertManager was installed by this suite.
 	shouldCleanupCertManager = false
+	// sidecarImage is the sidecar image loaded into Kind for E2E tests.
+	sidecarImage string
 )
+
+func init() {
+	sidecarImage = os.Getenv("SIDECAR_IMAGE")
+	if sidecarImage == "" {
+		sidecarImage = "fallernetes-sidecar:e2e"
+	}
+}
 
 // TestE2E runs the e2e test suite to validate the solution in an isolated environment.
 // The default setup requires Kind and CertManager.
@@ -61,6 +70,10 @@ var _ = BeforeSuite(func() {
 	By("loading the manager image on Kind")
 	err = utils.LoadImageToKindClusterWithName(managerImage)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the manager image into Kind")
+
+	By("loading the sidecar image on Kind")
+	err = utils.LoadImageToKindClusterWithName(sidecarImage)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the sidecar image into Kind")
 
 	configureKubectlKubeRC()
 	setupCertManager()

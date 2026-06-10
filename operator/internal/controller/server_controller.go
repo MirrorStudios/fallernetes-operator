@@ -53,19 +53,10 @@ type ServerReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers/finalizers,verbs=update
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// the Server object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.23.3/pkg/reconcile
 func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// Fetch the Server resource
 	server := &gameserverv1alpha1.Server{}
 	if err := r.Get(ctx, req.NamespacedName, server); err != nil {
-		if client.IgnoreNotFound(err) != nil { //If some other error
+		if client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{}, fmt.Errorf("failed to get Server: %w", err)
 		}
 		return ctrl.Result{}, nil
@@ -102,25 +93,123 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// Ensure Pod exists
 	podExists, err := r.ensurePodExists(ctx, server)
 	if err != nil {
-		if err := r.Update(ctx, server); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to update server: %w", err)
-		}
+		meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonPodNotFound,
+			Message:            fmt.Sprintf("Failed to create pod: %s", err),
+			ObservedGeneration: server.Generation,
+		})
+		_ = r.Status().Update(ctx, server)
 		return ctrl.Result{}, fmt.Errorf("failed to ensure Pod exists for Server: %w", err)
 	}
 	if !podExists {
+		// Pod was just created; set initial Pending state and wait for pod event.
+		server.Status.Phase = gameserverv1alpha1.ServerPhasePending
+		server.Status.ObservedGeneration = server.Generation
+		meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionUnknown,
+			Reason:             gameserverv1alpha1.ReasonPodNotRunning,
+			Message:            "Pod has been created and is starting",
+			ObservedGeneration: server.Generation,
+		})
+		meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionPodScheduled,
+			Status:             metav1.ConditionUnknown,
+			Reason:             gameserverv1alpha1.ReasonPodPending,
+			Message:            "Waiting for pod to be scheduled",
+			ObservedGeneration: server.Generation,
+		})
+		if err := r.Status().Update(ctx, server); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update Server status: %w", err)
+		}
 		return ctrl.Result{}, nil
 	}
 
-	// Ensure pod has the finalizers
+	// Ensure pod has the finalizer
 	update, err := r.ensurePodFinalizer(ctx, server)
 	if err != nil || update {
 		return ctrl.Result{}, err
 	}
 
-	if err := r.Status().Update(ctx, server); err != nil {
-		return ctrl.Result{}, fmt.Errorf("failed to update Server resource: %w", err)
+	return ctrl.Result{}, r.syncServerStatus(ctx, server)
+}
+
+// syncServerStatus reads the pod's current state and writes Phase, PodPhase, and
+// condition fields onto the server status, then persists the status subresource.
+func (r *ServerReconciler) syncServerStatus(ctx context.Context, server *gameserverv1alpha1.Server) error {
+	pod := &corev1.Pod{}
+	namespacedName := types.NamespacedName{Namespace: server.Namespace, Name: server.Name + "-pod"}
+
+	server.Status.ObservedGeneration = server.Generation
+
+	if err := r.Get(ctx, namespacedName, pod); err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			return fmt.Errorf("failed to get pod for status sync: %w", err)
+		}
+		server.Status.Phase = gameserverv1alpha1.ServerPhasePending
+		server.Status.PodPhase = ""
+		meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonPodNotFound,
+			Message:            "Pod does not exist",
+			ObservedGeneration: server.Generation,
+		})
+		meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionPodScheduled,
+			Status:             metav1.ConditionUnknown,
+			Reason:             gameserverv1alpha1.ReasonPodNotFound,
+			Message:            "Pod does not exist",
+			ObservedGeneration: server.Generation,
+		})
+	} else {
+		server.Status.PodPhase = pod.Status.Phase
+
+		if pod.Spec.NodeName != "" {
+			meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+				Type:               gameserverv1alpha1.ConditionPodScheduled,
+				Status:             metav1.ConditionTrue,
+				Reason:             gameserverv1alpha1.ReasonPodScheduled,
+				Message:            fmt.Sprintf("Pod scheduled on node %s", pod.Spec.NodeName),
+				ObservedGeneration: server.Generation,
+			})
+		} else {
+			meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+				Type:               gameserverv1alpha1.ConditionPodScheduled,
+				Status:             metav1.ConditionFalse,
+				Reason:             gameserverv1alpha1.ReasonPodNotScheduled,
+				Message:            "Pod has not been scheduled to a node yet",
+				ObservedGeneration: server.Generation,
+			})
+		}
+
+		if pod.Status.Phase == corev1.PodRunning {
+			server.Status.Phase = gameserverv1alpha1.ServerPhaseReady
+			meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+				Type:               gameserverv1alpha1.ConditionReady,
+				Status:             metav1.ConditionTrue,
+				Reason:             gameserverv1alpha1.ReasonPodRunning,
+				Message:            "Pod is running",
+				ObservedGeneration: server.Generation,
+			})
+		} else {
+			server.Status.Phase = gameserverv1alpha1.ServerPhasePending
+			meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
+				Type:               gameserverv1alpha1.ConditionReady,
+				Status:             metav1.ConditionFalse,
+				Reason:             gameserverv1alpha1.ReasonPodNotRunning,
+				Message:            fmt.Sprintf("Pod is in phase %s", pod.Status.Phase),
+				ObservedGeneration: server.Generation,
+			})
+		}
 	}
-	return ctrl.Result{}, nil
+
+	if err := r.Status().Update(ctx, server); err != nil {
+		return fmt.Errorf("failed to update Server status: %w", err)
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -152,31 +241,16 @@ func (r *ServerReconciler) ensurePodExists(ctx context.Context, server *gameserv
 			return false, fmt.Errorf("failed to set controller reference on Pod: %w", err)
 		}
 		if err := r.Create(ctx, newPod); err != nil {
-			meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
-				Type:               "PodFailed",
-				Status:             metav1.ConditionFalse,
-				LastTransitionTime: metav1.Now(),
-				Reason:             "PodCreationFailed",
-				Message:            "Failed to create the Pod",
-			})
 			r.emitEventf(server, corev1.EventTypeWarning, utils.ReasonServerPodCreationFailed, "Pod creation errored: %s", err)
 			return false, err
 		}
-
-		meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
-			Type:               "PodCreated",
-			Status:             metav1.ConditionTrue,
-			LastTransitionTime: metav1.Now(),
-			Reason:             "PodCreatedSuccessfully",
-			Message:            "Pod has been successfully created",
-		})
 		r.emitEvent(server, corev1.EventTypeNormal, utils.ReasonServerInitialized, "Pod created successfully")
 		return false, nil
 	}
 	return true, nil
 }
 
-// handleDeletion handles the deletion process of the Server, by checking with the sidecar if it is allowed to be deleted
+// handleDeletion handles the deletion process of the Server
 func (r *ServerReconciler) handleDeletion(ctx context.Context, server *gameserverv1alpha1.Server) error {
 	pod := &corev1.Pod{}
 	namespacedName := types.NamespacedName{Namespace: server.Namespace, Name: server.Name + "-pod"}
@@ -211,13 +285,6 @@ func (r *ServerReconciler) handleDeletion(ctx context.Context, server *gameserve
 		return err
 	}
 
-	meta.SetStatusCondition(&server.Status.Conditions, metav1.Condition{
-		Type:               "Finalizing",
-		Status:             metav1.ConditionTrue,
-		LastTransitionTime: metav1.Now(),
-		Reason:             "PodDeleted",
-		Message:            "Pod successfully deleted during finalization",
-	})
 	r.emitEvent(server, corev1.EventTypeNormal, utils.ReasonServerPodDeleted, "Pod successfully deleted during finalization")
 	return nil
 }
@@ -241,12 +308,10 @@ func (r *ServerReconciler) ensurePodFinalizer(ctx context.Context, server *games
 	return true, nil
 }
 
-// emitEvent is used by the ServerReconciler to add events to an object easily
 func (r *ServerReconciler) emitEvent(object runtime.Object, eventtype string, reason utils.EventReason, message string) {
 	r.Recorder.Event(object, eventtype, string(reason), message)
 }
 
-// emitEventf is used by the ServerReconciler to add events with arguments to an object easily
 func (r *ServerReconciler) emitEventf(object runtime.Object, eventtype string, reason utils.EventReason, message string, args ...interface{}) {
 	r.Recorder.Eventf(object, eventtype, string(reason), message, args...)
 }

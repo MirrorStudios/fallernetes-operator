@@ -14,7 +14,17 @@ spec:
     singular: server
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.podPhase
+      name: PodPhase
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Server is the Schema for the servers API
@@ -8545,6 +8555,20 @@ spec:
                   - type
                   type: object
                 type: array
+              observedGeneration:
+                format: int64
+                type: integer
+              phase:
+                description: ServerPhase represents the lifecycle phase of a Server.
+                enum:
+                - Pending
+                - Ready
+                - Deleting
+                type: string
+              podPhase:
+                description: PodPhase is a label for the condition of a pod at the
+                  current time.
+                type: string
             type: object
         required:
         - spec
