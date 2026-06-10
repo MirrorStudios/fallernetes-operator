@@ -313,7 +313,18 @@ var _ = Describe("Server Controller", func() {
 			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // adds server finalizer
 		})
 
-		AfterEach(func() { cleanupServer(serverName) })
+		AfterEach(func() {
+			cleanupServer(serverName)
+			// Wait for the pod to be fully removed from etcd before the next test starts.
+			// Without this, a pod left in a brief "terminating" state (DeletionTimestamp set,
+			// no finalizers) causes the next test's ensurePodFinalizer to fail with
+			// "no new finalizers can be added if the object is being deleted".
+			Eventually(func() bool {
+				p := &corev1.Pod{}
+				err := k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName + "-pod", Namespace: ns}, p)
+				return err != nil && client.IgnoreNotFound(err) == nil
+			}).Should(BeTrue())
+		})
 
 		It("sets Phase=Pending and initial conditions (Unknown) right after pod creation", func() {
 			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // creates pod, writes pending status
