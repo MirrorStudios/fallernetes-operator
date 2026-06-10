@@ -418,6 +418,7 @@ var _ = Describe("GameType Controller", func() {
 		})
 	})
 
+
 	Context("Rolling update on pod spec change", func() {
 		const gtName = "gt-rolling-test"
 
