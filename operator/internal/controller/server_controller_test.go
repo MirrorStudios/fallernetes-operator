@@ -359,22 +359,31 @@ var _ = Describe("Server Controller", func() {
 		})
 
 		It("sets Phase=Ready and Ready=True when pod is Running with a NodeName", func() {
-			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // creates pod
-			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // adds pod finalizer
+			// Pre-create the pod with NodeName set. Kubernetes forbids patching spec.nodeName on
+			// an existing pod, but allows it to be set at creation time.
+			pod := &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      serverName + "-pod",
+					Namespace: ns,
+					Labels:    map[string]string{"server": serverName},
+				},
+				Spec: corev1.PodSpec{
+					NodeName:   "fake-node",
+					Containers: []corev1.Container{{Name: "game-server", Image: "test:latest"}},
+				},
+			}
+			Expect(k8sClient.Create(context.Background(), pod)).To(Succeed())
 
-			pod := &corev1.Pod{}
-			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName + "-pod", Namespace: ns}, pod)).To(Succeed())
-
-			// Simulate scheduler assigning a node
-			patch := client.MergeFrom(pod.DeepCopy())
-			pod.Spec.NodeName = "fake-node"
-			Expect(k8sClient.Patch(context.Background(), pod, patch)).To(Succeed())
+			// Reconcile: ensurePodExists finds the pre-created pod, ensurePodFinalizer adds finalizer
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
 
 			// Simulate kubelet marking the pod as Running
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName + "-pod", Namespace: ns}, pod)).To(Succeed())
 			pod.Status.Phase = corev1.PodRunning
 			Expect(k8sClient.Status().Update(context.Background(), pod)).To(Succeed())
 
-			Expect(reconcileServer(serverName, allowed)).To(Succeed()) // calls syncServerStatus
+			// Reconcile: pod finalizer already present, calls syncServerStatus
+			Expect(reconcileServer(serverName, allowed)).To(Succeed())
 
 			server := &gameserverv1alpha1.Server{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
