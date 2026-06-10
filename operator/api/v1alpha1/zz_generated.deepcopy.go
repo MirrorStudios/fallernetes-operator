@@ -289,8 +289,7 @@ func (in *GameTypeAutoscalerStatus) DeepCopyInto(out *GameTypeAutoscalerStatus) 
 	}
 	if in.LastScaleTime != nil {
 		in, out := &in.LastScaleTime, &out.LastScaleTime
-		*out = new(v1.Time)
-		**out = **in
+		*out = (*in).DeepCopy()
 	}
 }
 

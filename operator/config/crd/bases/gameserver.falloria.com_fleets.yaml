@@ -14,7 +14,20 @@ spec:
     singular: fleet
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .status.replicas
+      name: Replicas
+      type: integer
+    - jsonPath: .status.readyReplicas
+      name: Ready
+      type: integer
+    - jsonPath: .status.desiredReplicas
+      name: Desired
+      type: integer
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Fleet is the Schema for the fleets API
@@ -8610,9 +8623,22 @@ spec:
                   - type
                   type: object
                 type: array
-              current_replicas:
+              desiredReplicas:
                 format: int32
                 type: integer
+              observedGeneration:
+                format: int64
+                type: integer
+              readyReplicas:
+                format: int32
+                type: integer
+              replicas:
+                format: int32
+                type: integer
+            required:
+            - desiredReplicas
+            - readyReplicas
+            - replicas
             type: object
         required:
         - spec
