@@ -1,0 +1,5 @@
+package: gen
+generate:
+  - types
+  - client
+output: client.gen.go

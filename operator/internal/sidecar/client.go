@@ -1,73 +1,58 @@
 package sidecar
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar/gen"
 )
 
-type deleteRequest struct {
-	Allowed bool `json:"allowed"`
+func newClient(pod *v1.Pod, port string) (*gen.ClientWithResponses, error) {
+	return gen.NewClientWithResponses(
+		buildPodBaseAddress(pod, port),
+		gen.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
+	)
 }
 
-type shutdownRequest struct {
-	Shutdown bool `json:"shutdown"`
-}
-
-// IsDeleteAllowed sends a request to API/allow_delete to ask the server if it can be shutdown and deleted
+// IsDeleteAllowed asks the sidecar whether the pod may be deleted.
 func IsDeleteAllowed(pod *v1.Pod, port string) (bool, error) {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := client.Get(buildPodBaseAddress(pod, port) + "allow_delete")
+	client, err := newClient(pod, port)
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return false, errors.New("GET request returned: " + resp.Status)
-	}
-
-	var request deleteRequest
-	err = json.NewDecoder(resp.Body).Decode(&request)
+	resp, err := client.GetAllowDeleteWithResponse(context.Background())
 	if err != nil {
 		return false, err
 	}
-	return request.Allowed, nil
+	if resp.StatusCode() != http.StatusOK {
+		return false, errors.New("GET allow_delete returned: " + resp.Status())
+	}
+	if resp.JSON200 == nil {
+		return false, errors.New("GET allow_delete: empty response body")
+	}
+	return resp.JSON200.Allowed, nil
 }
 
-// RequestShutdown sends a request to API/shutdown to tell the server that operator has requested its shutdown
+// RequestShutdown tells the sidecar that the operator has requested shutdown.
 func RequestShutdown(pod *v1.Pod, port string) error {
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	request := shutdownRequest{
-		Shutdown: true,
-	}
-	requestBody, err := json.Marshal(request)
+	client, err := newClient(pod, port)
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.Post(buildPodBaseAddress(pod, port)+"shutdown", "application/json", bytes.NewBuffer(requestBody))
+	resp, err := client.SetShutdownWithResponse(context.Background(), gen.SetShutdownJSONRequestBody{Shutdown: true})
 	if err != nil {
 		return err
 	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return errors.New("POST request returned: " + resp.Status)
+	if resp.StatusCode() != http.StatusOK {
+		return errors.New("POST shutdown returned: " + resp.Status())
 	}
-
 	return nil
 }
 
