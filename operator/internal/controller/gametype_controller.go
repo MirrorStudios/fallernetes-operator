@@ -24,8 +24,9 @@ import (
 	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,8 +50,6 @@ type GameTypeReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypes/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
 func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := ctrllog.FromContext(ctx).WithValues("gametype", req.Name, "namespace", req.Namespace)
 
@@ -85,46 +84,88 @@ func (r *GameTypeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, nil
 	}
 
-	err := r.handleGametypeStatus(ctx, gametype, logger)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	err = r.updateReplicaCount(ctx, gametype)
-	if err != nil {
+	if err := r.syncGameTypeStatus(ctx, gametype, logger); err != nil {
 		return ctrl.Result{}, err
 	}
 
 	return r.handleUpdating(ctx, gametype, logger)
 }
 
-// updateReplicaCount updates the replica count of the underlying fleet, based on the spec
-func (r *GameTypeReconciler) updateReplicaCount(ctx context.Context, gametype *gameserverv1alpha1.GameType) error {
-	if gametype.Status.CurrentFleetName == "" {
-		return nil
-	}
-
-	fleet := &gameserverv1alpha1.Fleet{}
-	name := types.NamespacedName{
-		Namespace: gametype.Namespace,
-		Name:      gametype.Status.CurrentFleetName,
-	}
-	err := r.Get(ctx, name, fleet)
+// syncGameTypeStatus updates ActiveFleetName, TotalFleets, Replicas, ReadyReplicas,
+// ObservedGeneration, and conditions based on the current set of owned fleets.
+func (r *GameTypeReconciler) syncGameTypeStatus(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) error {
+	fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
 	if err != nil {
-		return fmt.Errorf("failed to get fleet to update: %s", err)
+		return err
 	}
 
-	if fleet == nil {
-		return fmt.Errorf("could not get fleet to update")
+	gametype.Status.TotalFleets = int32(len(fleets.Items))
+	gametype.Status.ObservedGeneration = gametype.Generation
+
+	newestFleet := utils.GetNewestFleet(fleets.Items)
+	if newestFleet != nil {
+		gametype.Status.ActiveFleetName = newestFleet.Name
+		gametype.Status.Replicas = newestFleet.Status.Replicas
+		gametype.Status.ReadyReplicas = newestFleet.Status.ReadyReplicas
+	} else {
+		gametype.Status.ActiveFleetName = ""
+		gametype.Status.Replicas = 0
+		gametype.Status.ReadyReplicas = 0
 	}
-	gametype.Status.CurrentFleetReplicas = fleet.Spec.Scaling.Replicas
-	err = r.Status().Update(ctx, gametype)
-	return err
+
+	r.syncGameTypeConditions(gametype)
+
+	return r.Status().Update(ctx, gametype)
 }
 
-// handleUpdating handles the updating process of the GameType.
-// It creates an initial fleet if none exists, reconciles replica counts, triggers
-// rolling updates when the pod spec changes, and prunes extra fleets during rollout.
+// syncGameTypeConditions sets the Ready and RollingUpdate conditions.
+func (r *GameTypeReconciler) syncGameTypeConditions(gametype *gameserverv1alpha1.GameType) {
+	gen := gametype.Generation
+	desired := gametype.Spec.FleetSpec.Scaling.Replicas
+
+	if gametype.Status.ActiveFleetName != "" &&
+		gametype.Status.ReadyReplicas == desired && desired > 0 {
+		meta.SetStatusCondition(&gametype.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionTrue,
+			Reason:             gameserverv1alpha1.ReasonAtDesiredCount,
+			Message:            fmt.Sprintf("Active fleet %s is ready at %d replicas", gametype.Status.ActiveFleetName, gametype.Status.ReadyReplicas),
+			ObservedGeneration: gen,
+		})
+	} else {
+		msg := "Fleet not ready or no active fleet"
+		if gametype.Status.ActiveFleetName != "" {
+			msg = fmt.Sprintf("Fleet %s has %d/%d ready replicas", gametype.Status.ActiveFleetName, gametype.Status.ReadyReplicas, desired)
+		}
+		meta.SetStatusCondition(&gametype.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonReplicasMismatch,
+			Message:            msg,
+			ObservedGeneration: gen,
+		})
+	}
+
+	if gametype.Status.TotalFleets > 1 {
+		meta.SetStatusCondition(&gametype.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionRollingUpdate,
+			Status:             metav1.ConditionTrue,
+			Reason:             gameserverv1alpha1.ReasonRolloutInProgress,
+			Message:            fmt.Sprintf("Rolling update in progress: %d fleets exist", gametype.Status.TotalFleets),
+			ObservedGeneration: gen,
+		})
+	} else {
+		meta.SetStatusCondition(&gametype.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionRollingUpdate,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonNoRollout,
+			Message:            "No rolling update in progress",
+			ObservedGeneration: gen,
+		})
+	}
+}
+
+// handleUpdating handles fleet creation, replica scaling, and rolling updates.
 func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) (ctrl.Result, error) {
 	fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
 	if err != nil {
@@ -139,20 +180,12 @@ func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *games
 	}
 	if len(fleets.Items) == 1 {
 		fleet := fleets.Items[0]
-		gametype.Status.CurrentFleetName = fleet.Name
-		if err := r.Status().Update(ctx, gametype); err != nil {
-			return ctrl.Result{}, err
-		}
 		if !gameserverv1alpha1.AreFleetsPodsEqual(&fleet.Spec, &gametype.Spec.FleetSpec) {
 			r.emitEvent(gametype, corev1.EventTypeNormal, utils.ReasonGametypeSpecUpdated, "Creating new fleet")
 			return r.handleCreation(ctx, gametype, logger)
-		} else if gametype.Spec.FleetSpec.Scaling.Replicas != gametype.Status.CurrentFleetReplicas {
-			gametype.Status.CurrentFleetReplicas = gametype.Spec.FleetSpec.Scaling.Replicas
+		} else if gametype.Spec.FleetSpec.Scaling.Replicas != fleet.Spec.Scaling.Replicas {
 			fleet.Spec.Scaling.Replicas = gametype.Spec.FleetSpec.Scaling.Replicas
 			if err := r.Update(ctx, &fleet); err != nil {
-				return ctrl.Result{}, err
-			}
-			if err := r.Status().Update(ctx, gametype); err != nil {
 				return ctrl.Result{}, err
 			}
 			r.emitEventf(gametype, corev1.EventTypeNormal, utils.ReasonGametypeReplicasUpdated, "Scaling gametype to %d", fleet.Spec.Scaling.Replicas)
@@ -174,14 +207,11 @@ func (r *GameTypeReconciler) handleUpdating(ctx context.Context, gametype *games
 	return ctrl.Result{}, nil
 }
 
-// handleDeletion is used to trigger deletion of the GameType
-// It first checks if we have the finalizer, then we can imagine we are still removing the fleets
-// Once all fleets are removed, we remove the finalizer
+// handleDeletion triggers deletion of all fleets owned by the GameType.
 func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) error {
 	logger.Info("Handling gametype deletion")
 	if controllerutil.ContainsFinalizer(gametype, TypeFinalizer) {
 		logger.Info("Finalizer present, deleting associated fleets")
-		//Finalizer not yet removed, we can presume that fleet deletion in progress or starting
 		fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
 		if err != nil {
 			return err
@@ -208,7 +238,7 @@ func (r *GameTypeReconciler) handleDeletion(ctx context.Context, gametype *games
 	return nil
 }
 
-// handleCreation is used to initially create the underlying fleet
+// handleCreation creates the underlying fleet for the GameType.
 func (r *GameTypeReconciler) handleCreation(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) (ctrl.Result, error) {
 	fleet := builders.GetFleetObjectForType(gametype)
 	if err := r.Create(ctx, fleet); err != nil {
@@ -219,30 +249,12 @@ func (r *GameTypeReconciler) handleCreation(ctx context.Context, gametype *games
 	return ctrl.Result{}, nil
 }
 
-// emitEvent is used by the GameTypeReconciler to quickly add new events to objects
 func (r *GameTypeReconciler) emitEvent(object runtime.Object, eventtype string, reason utils.EventReason, message string) {
 	r.Recorder.Event(object, eventtype, string(reason), message)
 }
 
-// emitEventf is used by the GameTypeReconciler to add new events to objects with arguments
 func (r *GameTypeReconciler) emitEventf(object runtime.Object, eventtype string, reason utils.EventReason, message string, args ...interface{}) {
 	r.Recorder.Eventf(object, eventtype, string(reason), message, args...)
-}
-
-// handleGametypeStatus keeps gametype.Status.CurrentFleetName pointing at the newest fleet.
-func (r *GameTypeReconciler) handleGametypeStatus(ctx context.Context, gametype *gameserverv1alpha1.GameType, logger logr.Logger) error {
-	fleets, err := utils.GetFleetsForType(ctx, r.Client, gametype, logger)
-	if err != nil {
-		return err
-	}
-	newestFleet := utils.GetNewestFleet(fleets.Items)
-	if newestFleet != nil {
-		gametype.Status.CurrentFleetName = newestFleet.Name
-		if err := r.Status().Update(ctx, gametype); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

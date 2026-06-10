@@ -25,6 +25,8 @@ import (
 	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
 	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -48,11 +50,7 @@ type FleetReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=fleets/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
 func (r *FleetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	//Fetch the fleet resource from the cluster
 	fleet := &gameserverv1alpha1.Fleet{}
 	if err := r.Get(ctx, req.NamespacedName, fleet); err != nil {
 		return ctrl.Result{}, err
@@ -81,8 +79,13 @@ func (r *FleetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	fleet.Status.CurrentReplicas = int32(len(servers.Items))
-	if fleet.Spec.Scaling.Replicas != fleet.Status.CurrentReplicas {
+
+	fleet.Status.Replicas = int32(len(servers.Items))
+	fleet.Status.DesiredReplicas = fleet.Spec.Scaling.Replicas
+	fleet.Status.ObservedGeneration = fleet.Generation
+	fleet.Status.ReadyReplicas = countReadyServers(servers.Items)
+
+	if fleet.Spec.Scaling.Replicas != fleet.Status.Replicas {
 		if err := r.scaleServerCount(ctx, fleet, req.Namespace); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -90,13 +93,90 @@ func (r *FleetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		fleet.Status.CurrentReplicas = int32(len(servers.Items))
+		fleet.Status.Replicas = int32(len(servers.Items))
+		fleet.Status.ReadyReplicas = countReadyServers(servers.Items)
 	}
+
+	r.syncFleetConditions(fleet)
 
 	if err := r.Status().Update(ctx, fleet); err != nil {
 		return ctrl.Result{}, fmt.Errorf("failed to update Fleet status resource: %w", err)
 	}
 	return ctrl.Result{}, nil
+}
+
+// countReadyServers counts servers in the Ready phase.
+func countReadyServers(servers []gameserverv1alpha1.Server) int32 {
+	count := int32(0)
+	for _, s := range servers {
+		if s.Status.Phase == gameserverv1alpha1.ServerPhaseReady {
+			count++
+		}
+	}
+	return count
+}
+
+// syncFleetConditions sets Ready, Available, and Scaling conditions based on current status fields.
+func (r *FleetReconciler) syncFleetConditions(fleet *gameserverv1alpha1.Fleet) {
+	gen := fleet.Generation
+
+	if fleet.Status.ReadyReplicas == fleet.Status.DesiredReplicas && fleet.Status.DesiredReplicas > 0 {
+		meta.SetStatusCondition(&fleet.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionTrue,
+			Reason:             gameserverv1alpha1.ReasonAtDesiredCount,
+			Message:            fmt.Sprintf("All %d replicas are ready", fleet.Status.DesiredReplicas),
+			ObservedGeneration: gen,
+		})
+	} else {
+		meta.SetStatusCondition(&fleet.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionReady,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonReplicasMismatch,
+			Message:            fmt.Sprintf("Ready replicas (%d) do not match desired (%d)", fleet.Status.ReadyReplicas, fleet.Status.DesiredReplicas),
+			ObservedGeneration: gen,
+		})
+	}
+
+	if fleet.Status.ReadyReplicas > 0 {
+		meta.SetStatusCondition(&fleet.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionAvailable,
+			Status:             metav1.ConditionTrue,
+			Reason:             gameserverv1alpha1.ReasonReplicasAvailable,
+			Message:            fmt.Sprintf("%d replica(s) available", fleet.Status.ReadyReplicas),
+			ObservedGeneration: gen,
+		})
+	} else {
+		meta.SetStatusCondition(&fleet.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionAvailable,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonNoReplicas,
+			Message:            "No replicas are available",
+			ObservedGeneration: gen,
+		})
+	}
+
+	if fleet.Status.Replicas != fleet.Status.DesiredReplicas {
+		reason := gameserverv1alpha1.ReasonScalingUp
+		if fleet.Status.Replicas > fleet.Status.DesiredReplicas {
+			reason = gameserverv1alpha1.ReasonScalingDown
+		}
+		meta.SetStatusCondition(&fleet.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionScaling,
+			Status:             metav1.ConditionTrue,
+			Reason:             reason,
+			Message:            fmt.Sprintf("Scaling from %d to %d replicas", fleet.Status.Replicas, fleet.Status.DesiredReplicas),
+			ObservedGeneration: gen,
+		})
+	} else {
+		meta.SetStatusCondition(&fleet.Status.Conditions, metav1.Condition{
+			Type:               gameserverv1alpha1.ConditionScaling,
+			Status:             metav1.ConditionFalse,
+			Reason:             gameserverv1alpha1.ReasonAtDesiredCount,
+			Message:            "Fleet is at desired replica count",
+			ObservedGeneration: gen,
+		})
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -109,12 +189,9 @@ func (r *FleetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// scaleServerCount is used to update the server count based on the Fleet spec
-// It either adds more or remove some servers
 func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserverv1alpha1.Fleet, namespace string) error {
-	if fleet.Status.CurrentReplicas < fleet.Spec.Scaling.Replicas {
-		//Scale up
-		serversNeeded := fleet.Spec.Scaling.Replicas - fleet.Status.CurrentReplicas
+	if fleet.Status.Replicas < fleet.Spec.Scaling.Replicas {
+		serversNeeded := fleet.Spec.Scaling.Replicas - fleet.Status.Replicas
 		for range serversNeeded {
 			server := builders.CreateServerForFleet(*fleet, namespace)
 			err := r.Create(ctx, server)
@@ -125,8 +202,7 @@ func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserve
 		}
 		r.emitEventf(fleet, corev1.EventTypeNormal, utils.ReasonFleetScaleServers, "Scaled servers up to %d", fleet.Spec.Scaling.Replicas)
 	}
-	//Scale down
-	if fleet.Status.CurrentReplicas > fleet.Spec.Scaling.Replicas {
+	if fleet.Status.Replicas > fleet.Spec.Scaling.Replicas {
 		servers, err := utils.GetServersForFleet(ctx, r.Client, fleet)
 		if err != nil {
 			return err
@@ -144,10 +220,6 @@ func (r *FleetReconciler) scaleServerCount(ctx context.Context, fleet *gameserve
 	return nil
 }
 
-// handleDeletion is used by the FleetReconciler to handle deletion.
-// Internally, it first getts all the associated servers, then triggers them for deletion.
-// It requeues the reconcilation, until the amount of servers is 0.
-// Once it is 0, it removes the finalizer.
 func (r *FleetReconciler) handleDeletion(ctx context.Context, fleet *gameserverv1alpha1.Fleet) error {
 	servers, err := utils.GetServersForFleet(ctx, r.Client, fleet)
 	if err != nil {
@@ -158,16 +230,14 @@ func (r *FleetReconciler) handleDeletion(ctx context.Context, fleet *gameserverv
 			return err
 		}
 	}
-	//Get them again to check if any were deleted already
 	servers, err = utils.GetServersForFleet(ctx, r.Client, fleet)
 	if err != nil {
 		return err
 	}
 	if len(servers.Items) == 0 {
-		//Remove finalizer
 		controllerutil.RemoveFinalizer(fleet, FLEET_FINALIZER)
 		if err := r.Update(ctx, fleet); err != nil {
-			r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetUpdateFailed, "Failed to remvoe finalizer: %s", err)
+			r.emitEventf(fleet, corev1.EventTypeWarning, utils.ReasonFleetUpdateFailed, "Failed to remove finalizer: %s", err)
 			return err
 		}
 		r.emitEvent(fleet, corev1.EventTypeNormal, utils.ReasonFleetServersRemoved, "Fleet finalizers removed")
@@ -175,12 +245,10 @@ func (r *FleetReconciler) handleDeletion(ctx context.Context, fleet *gameserverv
 	return nil
 }
 
-// emitEvent is used to quickly emit events from the FleetReconciler
 func (r *FleetReconciler) emitEvent(object runtime.Object, eventtype string, reason utils.EventReason, message string) {
 	r.Recorder.Event(object, eventtype, string(reason), message)
 }
 
-// emitEventf is used to quickly emit events from the FleetReconciler with arguments
 func (r *FleetReconciler) emitEventf(object runtime.Object, eventtype string, reason utils.EventReason, message string, args ...interface{}) {
 	r.Recorder.Eventf(object, eventtype, string(reason), message, args...)
 }

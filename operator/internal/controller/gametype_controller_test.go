@@ -99,7 +99,7 @@ var _ = Describe("GameType Controller", func() {
 
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetName).NotTo(BeEmpty())
+			Expect(gt.Status.ActiveFleetName).NotTo(BeEmpty())
 		})
 	})
 
@@ -144,7 +144,7 @@ var _ = Describe("GameType Controller", func() {
 
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetName).NotTo(BeEmpty())
+			Expect(gt.Status.ActiveFleetName).NotTo(BeEmpty())
 		})
 	})
 
@@ -215,23 +215,24 @@ var _ = Describe("GameType Controller", func() {
 
 		AfterEach(func() { cleanupGameType(gtName) })
 
-		It("reflects the initial replica count in status", func() {
+		It("sets TotalFleets and ActiveFleetName after status sync", func() {
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetReplicas).To(Equal(int32(2)))
+			Expect(gt.Status.TotalFleets).To(Equal(int32(1)))
+			Expect(gt.Status.ActiveFleetName).NotTo(BeEmpty())
 		})
 
-		It("updates status after replicas are changed", func() {
+		It("fleet spec replicas are updated when gametype spec changes", func() {
 			gt := &gameserverv1alpha1.GameType{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
 			gt.Spec.FleetSpec.Scaling.Replicas = 4
 			Expect(k8sClient.Update(context.Background(), gt)).To(Succeed())
 
 			Expect(reconcileGameType(gtName)).To(Succeed()) // propagate to fleet
-			Expect(reconcileGameType(gtName)).To(Succeed()) // sync status back
 
-			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gtName, Namespace: ns}, gt)).To(Succeed())
-			Expect(gt.Status.CurrentFleetReplicas).To(Equal(int32(4)))
+			fleets := fleetsForGameType(gtName)
+			Expect(fleets).NotTo(BeEmpty())
+			Expect(fleets[0].Spec.Scaling.Replicas).To(Equal(int32(4)))
 		})
 	})
 

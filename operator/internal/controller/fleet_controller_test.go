@@ -107,7 +107,7 @@ var _ = Describe("Fleet Controller", func() {
 
 			fleet := &gameserverv1alpha1.Fleet{}
 			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: fleetName, Namespace: ns}, fleet)).To(Succeed())
-			Expect(fleet.Status.CurrentReplicas).To(Equal(int32(2)))
+			Expect(fleet.Status.Replicas).To(Equal(int32(2)))
 		})
 
 		It("each created server has the fleet label", func() {

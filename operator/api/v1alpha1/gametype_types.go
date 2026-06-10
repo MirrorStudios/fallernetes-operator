@@ -27,14 +27,20 @@ type GameTypeSpec struct {
 
 // GameTypeStatus defines the observed state of GameType
 type GameTypeStatus struct {
-	Conditions       []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
-	CurrentFleetName string             `json:"fleetName"`
-	// +kubebuilder:default=0
-	CurrentFleetReplicas int32 `json:"fleetReplicas"`
+	Conditions         []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	ActiveFleetName    string             `json:"activeFleetName,omitempty"`
+	TotalFleets        int32              `json:"totalFleets"`
+	Replicas           int32              `json:"replicas"`
+	ReadyReplicas      int32              `json:"readyReplicas"`
+	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ActiveFleet",type="string",JSONPath=".status.activeFleetName"
+// +kubebuilder:printcolumn:name="Replicas",type="integer",JSONPath=".status.replicas"
+// +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // GameType is the Schema for the gametypes API
 type GameType struct {

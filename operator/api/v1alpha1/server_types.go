@@ -17,13 +17,13 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // ServerSpec defines the desired state of Server
 type ServerSpec struct {
-	Pod v1.PodSpec `json:"pod,omitempty"`
+	Pod corev1.PodSpec `json:"pod,omitempty"`
 	// +kubebuilder:validation:Optional
 	TimeOut *metav1.Duration `json:"timeout,omitempty"`
 	// +kubebuilder:validation:Optional
@@ -51,13 +51,29 @@ type SidecarSettings struct {
 	LogDebug bool `json:"logDebug,omitempty"`
 }
 
+// ServerPhase represents the lifecycle phase of a Server.
+// +kubebuilder:validation:Enum=Pending;Ready;Deleting
+type ServerPhase string
+
+const (
+	ServerPhasePending  ServerPhase = "Pending"
+	ServerPhaseReady    ServerPhase = "Ready"
+	ServerPhaseDeleting ServerPhase = "Deleting"
+)
+
 // ServerStatus defines the observed state of Server
 type ServerStatus struct {
-	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Conditions         []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Phase              ServerPhase        `json:"phase,omitempty"`
+	PodPhase           corev1.PodPhase    `json:"podPhase,omitempty"`
+	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="PodPhase",type="string",JSONPath=".status.podPhase"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // Server is the Schema for the servers API
 type Server struct {

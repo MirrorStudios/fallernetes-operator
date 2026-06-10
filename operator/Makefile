@@ -1,5 +1,9 @@
 # Image URL to use all building/pushing image targets
 IMG ?= controller:latest
+# Sidecar image to build and load into Kind for E2E tests
+SIDECAR_IMAGE ?= fallernetes-sidecar:e2e
+# Path to the sidecar module relative to this Makefile (repo layout: operator/ and sidecar/ are siblings)
+SIDECAR_DIR ?= ../sidecar
 # YEAR defines the year value used for substituting the YEAR placeholder in the boilerplate header.
 YEAR ?= $(shell date +%Y)
 
@@ -85,9 +89,17 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 			$(KIND) create cluster --name $(KIND_CLUSTER) ;; \
 	esac
 
+.PHONY: docker-build-sidecar
+docker-build-sidecar: ## Build the sidecar docker image from local source.
+	$(CONTAINER_TOOL) build -t $(SIDECAR_IMAGE) $(SIDECAR_DIR)
+
+.PHONY: kind-load-sidecar
+kind-load-sidecar: docker-build-sidecar ## Build and load the sidecar image into the Kind cluster.
+	$(KIND) load docker-image $(SIDECAR_IMAGE) --name $(KIND_CLUSTER)
+
 .PHONY: test-e2e
-test-e2e: setup-test-e2e manifests generate fmt vet kustomize ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) go test -tags=e2e ./test/e2e/ -v -ginkgo.v
+test-e2e: setup-test-e2e kind-load-sidecar manifests generate fmt vet kustomize ## Run the e2e tests. Expected an isolated environment using Kind.
+	KIND=$(KIND) KIND_CLUSTER=$(KIND_CLUSTER) SIDECAR_IMAGE=$(SIDECAR_IMAGE) go test -tags=e2e ./test/e2e/ -v -ginkgo.v
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: cleanup-test-e2e

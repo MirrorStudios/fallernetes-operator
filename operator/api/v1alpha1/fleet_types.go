@@ -58,12 +58,19 @@ type FleetScaling struct {
 
 // FleetStatus defines the observed state of Fleet
 type FleetStatus struct {
-	Conditions      []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
-	CurrentReplicas int32              `json:"current_replicas,omitempty"`
+	Conditions         []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+	Replicas           int32              `json:"replicas"`
+	ReadyReplicas      int32              `json:"readyReplicas"`
+	DesiredReplicas    int32              `json:"desiredReplicas"`
+	ObservedGeneration int64              `json:"observedGeneration,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Replicas",type="integer",JSONPath=".status.replicas"
+// +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas"
+// +kubebuilder:printcolumn:name="Desired",type="integer",JSONPath=".status.desiredReplicas"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // Fleet is the Schema for the fleets API
 type Fleet struct {
