@@ -1,0 +1,92 @@
+openapi: "3.0.3"
+info:
+  title: Fallernetes Sidecar API
+  version: "1.0.0"
+  description: Sidecar API for fallernetes game server pods
+
+paths:
+  /health:
+    get:
+      operationId: Health
+      summary: Liveness probe
+      responses:
+        '200':
+          description: OK
+
+  /allow_delete:
+    get:
+      operationId: GetAllowDelete
+      summary: Is pod deletion allowed?
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowDeleteResponse'
+    post:
+      operationId: SetAllowDelete
+      summary: Set deletion allowed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllowDeleteRequest'
+      responses:
+        '200':
+          description: OK
+
+  /shutdown:
+    get:
+      operationId: GetShutdown
+      summary: Is shutdown requested?
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShutdownResponse'
+    post:
+      operationId: SetShutdown
+      summary: Request shutdown
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShutdownRequest'
+      responses:
+        '200':
+          description: OK
+
+components:
+  schemas:
+    AllowDeleteResponse:
+      type: object
+      required: [allowed]
+      properties:
+        allowed:
+          type: boolean
+
+    AllowDeleteRequest:
+      type: object
+      required: [allowed]
+      properties:
+        allowed:
+          type: boolean
+
+    ShutdownResponse:
+      type: object
+      required: [shutdown]
+      properties:
+        shutdown:
+          type: boolean
+
+    ShutdownRequest:
+      type: object
+      required: [shutdown]
+      properties:
+        shutdown:
+          type: boolean
