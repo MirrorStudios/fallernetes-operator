@@ -362,13 +362,14 @@ spec:
     agePriority: oldest_first
     prioritizeAllowed: false
   spec:
+    timeout: 30s
     sidecar:
       port: 8080
     pod:
       containers:
       - name: game-server
         image: busybox:latest
-        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' --header='Content-Type: application/json' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
+        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
 `, testFleetName, testNS)
 			tmpFile := filepath.Join(os.TempDir(), "e2e-fleet.yaml")
 			Expect(os.WriteFile(tmpFile, []byte(fleetYAML), 0644)).To(Succeed())
@@ -433,7 +434,7 @@ spec:
       containers:
       - name: game-server
         image: busybox:latest
-        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' --header='Content-Type: application/json' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
+        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
 `, testFleetName, testNS)
 			tmpFile := filepath.Join(os.TempDir(), "e2e-fleet-del.yaml")
 			Expect(os.WriteFile(tmpFile, []byte(fleetYAML), 0644)).To(Succeed())
