@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	"github.com/MirrorStudios/fallernetes-operator/internal/autoscaler"
-	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/autoscaler"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/sidecar"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

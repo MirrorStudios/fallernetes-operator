@@ -3,29 +3,24 @@ package kube
 import (
 	"context"
 
+	v1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func (k *Adapter) CreateFleet(ctx context.Context, name, namespace string, labels map[string]string, spec gen.FleetSpec) error {
-	obj := fleetCRD{
-		APIVersion: crdGroup + "/" + crdVersion,
-		Kind:       "Fleet",
-		Metadata:   crdMetadata{Name: name, Namespace: namespace, Labels: labels},
-		Spec:       fleetSpecToCRD(spec),
+	fleet := &v1alpha1.Fleet{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
+		Spec:       fleetSpecToOperator(spec),
 	}
-	u, err := toUnstructured(obj)
-	if err != nil {
-		return err
-	}
-	_, err = k.dynamicClient.Resource(FleetGVR).Namespace(namespace).Create(ctx, u, metav1.CreateOptions{})
-	return err
+	return k.client.Create(ctx, fleet)
 }
 
 func (k *Adapter) DeleteFleet(ctx context.Context, name, namespace string, force bool) error {
-	err := k.dynamicClient.Resource(FleetGVR).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	fleet := &v1alpha1.Fleet{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+	if err := k.client.Delete(ctx, fleet); err != nil {
 		return err
 	}
 	if force {
@@ -35,15 +30,12 @@ func (k *Adapter) DeleteFleet(ctx context.Context, name, namespace string, force
 }
 
 func (k *Adapter) forceDeleteFleet(ctx context.Context, name, namespace string) error {
-	servers, err := k.dynamicClient.Resource(ServerGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
+	serverList := &v1alpha1.ServerList{}
+	if err := k.client.List(ctx, serverList, client.InNamespace(namespace), client.MatchingLabels{"fleet": name}); err != nil {
 		return err
 	}
-	for _, server := range servers.Items {
-		if server.GetLabels()["fleet"] != name {
-			continue
-		}
-		if err := k.sendDeleteAllowed(ctx, server.GetName(), server.GetNamespace()); err != nil {
+	for _, server := range serverList.Items {
+		if err := k.sendDeleteAllowed(ctx, server.Name, server.Namespace); err != nil {
 			return err
 		}
 	}

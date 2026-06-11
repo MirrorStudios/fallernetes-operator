@@ -1,6 +1,6 @@
 package test
 
-import stateport "github.com/MirrorStudios/fallernetes-sidecar/internal/ports/state"
+import stateport "github.com/MirrorStudios/fallernetes-operator/sidecar/internal/ports/state"
 
 type FakeStatePort struct {
 	deleteAllowed     bool

@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func (s *OperatorService) CreateFleet(ctx context.Context, req gen.CreateFleetRequestObject) (gen.CreateFleetResponseObject, error) {

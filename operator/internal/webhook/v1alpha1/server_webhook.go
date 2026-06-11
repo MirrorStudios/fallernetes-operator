@@ -24,7 +24,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 )
 
 // nolint:unused
@@ -32,10 +32,10 @@ import (
 var serverlog = logf.Log.WithName("server-resource")
 
 // SetupServerWebhookWithManager registers the webhook for Server in the manager.
-func SetupServerWebhookWithManager(mgr ctrl.Manager) error {
+func SetupServerWebhookWithManager(mgr ctrl.Manager, defaultSidecarImage string) error {
 	return ctrl.NewWebhookManagedBy(mgr, &gameserverv1alpha1.Server{}).
 		WithValidator(&ServerCustomValidator{}).
-		WithDefaulter(&ServerCustomDefaulter{}).
+		WithDefaulter(&ServerCustomDefaulter{DefaultSidecarImage: defaultSidecarImage}).
 		Complete()
 }
 
@@ -44,26 +44,26 @@ func SetupServerWebhookWithManager(mgr ctrl.Manager) error {
 // ServerCustomDefaulter struct is responsible for setting default values on the custom resource of the
 // Kind Server when those are created or updated.
 type ServerCustomDefaulter struct {
-	// TODO(user): Add more fields as needed for defaulting
+	DefaultSidecarImage string
 }
 
 // Default implements webhook.CustomDefaulter so a webhook will be registered for the Kind Server.
 func (d *ServerCustomDefaulter) Default(_ context.Context, server *gameserverv1alpha1.Server) error {
 	serverlog.Info("Defaulting for Server", "name", server.GetName())
 
-	defaultSidecarSettings(server)
+	defaultSidecarSettings(server, d.DefaultSidecarImage)
 
 	return nil
 }
-func defaultSidecarSettings(server *gameserverv1alpha1.Server) {
+
+func defaultSidecarSettings(server *gameserverv1alpha1.Server, defaultImage string) {
 	sidecarSettings := server.Spec.SidecarSettings
 	if sidecarSettings == nil {
 		sidecarSettings = &gameserverv1alpha1.SidecarSettings{}
 	}
 
 	if sidecarSettings.SidecarImage == nil {
-		image := "unfamousthomas/fallernetes-sidecar:main"
-		sidecarSettings.SidecarImage = &image
+		sidecarSettings.SidecarImage = &defaultImage
 	}
 
 	if sidecarSettings.Port == nil {

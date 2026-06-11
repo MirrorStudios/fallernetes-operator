@@ -1,18 +1,11 @@
 package kube
 
-import (
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
-)
+import "sigs.k8s.io/controller-runtime/pkg/client"
 
 type Adapter struct {
-	dynamicClient *dynamic.DynamicClient
-	clientSet     *kubernetes.Clientset
+	client client.Client
 }
 
-func NewKubeAdapter(dynamicClient *dynamic.DynamicClient, clientSet *kubernetes.Clientset) *Adapter {
-	return &Adapter{
-		dynamicClient: dynamicClient,
-		clientSet:     clientSet,
-	}
+func NewKubeAdapter(c client.Client) *Adapter {
+	return &Adapter{client: c}
 }

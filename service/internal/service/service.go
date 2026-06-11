@@ -1,7 +1,7 @@
 package service
 
 import (
-	kubeport "github.com/MirrorStudios/fallernetes-service/internal/ports/kube"
+	kubeport "github.com/MirrorStudios/fallernetes-operator/service/internal/ports/kube"
 )
 
 type OperatorService struct {

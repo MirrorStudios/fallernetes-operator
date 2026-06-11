@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 )
 
 type Webhook interface {

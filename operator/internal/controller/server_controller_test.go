@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/utils"
 )
 
 var _ = Describe("Server Controller", func() {

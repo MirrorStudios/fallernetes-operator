@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
+	"github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/sidecar"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

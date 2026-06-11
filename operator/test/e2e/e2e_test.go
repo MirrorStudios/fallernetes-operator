@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/MirrorStudios/fallernetes-operator/test/utils"
+	"github.com/MirrorStudios/fallernetes-operator/operator/test/utils"
 )
 
 // namespace where the project is deployed in

@@ -3,7 +3,7 @@ package test
 import (
 	"context"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 type FakeFleetPort struct {

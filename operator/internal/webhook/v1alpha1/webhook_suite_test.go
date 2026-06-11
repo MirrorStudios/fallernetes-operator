@@ -39,7 +39,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -118,7 +118,7 @@ var _ = BeforeSuite(func() {
 	err = SetupFleetWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupServerWebhookWithManager(mgr)
+	err = SetupServerWebhookWithManager(mgr, "unfamousthomas/fallernetes-sidecar:main")
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:webhook

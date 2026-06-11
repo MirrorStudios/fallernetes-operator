@@ -4,7 +4,7 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/gen"
 )
 
 func (s *SidecarService) GetAllowDelete(ctx context.Context, req gen.GetAllowDeleteRequestObject) (gen.GetAllowDeleteResponseObject, error) {

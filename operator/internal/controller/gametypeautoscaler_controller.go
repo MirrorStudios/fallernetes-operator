@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	"github.com/MirrorStudios/fallernetes-operator/internal/autoscaler"
-	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/autoscaler"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"

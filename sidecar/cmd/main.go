@@ -7,10 +7,10 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/adapters/state"
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/app"
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/routes"
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/service"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/adapters/state"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/app"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/routes"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/service"
 )
 
 func main() {
@@ -36,11 +36,9 @@ func main() {
 	slog.SetDefault(logger)
 
 	a := &app.App{
-		Mux:               http.NewServeMux(),
-		ShutdownRequested: false,
-		DeleteAllowed:     false,
-		Port:              port,
-		Logger:            logger,
+		Mux:    http.NewServeMux(),
+		Port:   port,
+		Logger: logger,
 	}
 
 	adapter := state.NewStateAdapter(a)

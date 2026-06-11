@@ -21,9 +21,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/MirrorStudios/fallernetes-operator/internal/builders"
-	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar"
-	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/builders"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/sidecar"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,7 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 )
 
 const ServerFinalizer = "server.falloria.com/finalizer"

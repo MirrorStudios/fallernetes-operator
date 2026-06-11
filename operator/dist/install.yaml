@@ -26506,6 +26506,7 @@ spec:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
+        - --sidecar-image=unfamousthomas/fallernetes-sidecar:main
         - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
         command:
         - /manager

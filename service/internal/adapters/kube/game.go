@@ -3,49 +3,39 @@ package kube
 import (
 	"context"
 
+	v1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func (k *Adapter) CreateGame(ctx context.Context, name, namespace string, labels map[string]string, spec gen.GameTypeSpec) error {
-	obj := gameCRD{
-		APIVersion: crdGroup + "/" + crdVersion,
-		Kind:       "GameType",
-		Metadata:   crdMetadata{Name: name, Namespace: namespace, Labels: labels},
-		Spec: gameCRDSpec{
-			FleetSpec: fleetSpecToCRD(spec.FleetSpec),
-		},
+	game := &v1alpha1.GameType{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
+		Spec:       gameTypeSpecToOperator(spec),
 	}
-	u, err := toUnstructured(obj)
-	if err != nil {
-		return err
-	}
-	_, err = k.dynamicClient.Resource(GameGVR).Namespace(namespace).Create(ctx, u, metav1.CreateOptions{})
-	return err
+	return k.client.Create(ctx, game)
 }
 
 func (k *Adapter) DeleteGame(ctx context.Context, name, namespace string, force bool) error {
-	err := k.dynamicClient.Resource(GameGVR).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	game := &v1alpha1.GameType{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+	if err := k.client.Delete(ctx, game); err != nil {
 		return err
 	}
 	if force {
-		return k.removeFleetsForGame(ctx, name, namespace, force)
+		return k.removeFleetsForGame(ctx, name, namespace)
 	}
 	return nil
 }
 
-func (k *Adapter) removeFleetsForGame(ctx context.Context, gameName, namespace string, force bool) error {
-	fleets, err := k.dynamicClient.Resource(FleetGVR).Namespace(namespace).List(ctx, metav1.ListOptions{})
-	if err != nil {
+func (k *Adapter) removeFleetsForGame(ctx context.Context, gameName, namespace string) error {
+	fleetList := &v1alpha1.FleetList{}
+	if err := k.client.List(ctx, fleetList, client.InNamespace(namespace), client.MatchingLabels{"type": gameName}); err != nil {
 		return err
 	}
-	for _, fleet := range fleets.Items {
-		if fleet.GetLabels()["type"] != gameName {
-			continue
-		}
-		if err := k.DeleteFleet(ctx, fleet.GetName(), fleet.GetNamespace(), force); err != nil {
+	for _, fleet := range fleetList.Items {
+		if err := k.DeleteFleet(ctx, fleet.Name, fleet.Namespace, true); err != nil {
 			return err
 		}
 	}

@@ -17,9 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	"reflect"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 )
 
 // FleetSpec defines the desired state of Fleet
@@ -103,5 +102,5 @@ func init() {
 }
 
 func AreFleetsPodsEqual(fleet1, fleet2 *FleetSpec) bool {
-	return reflect.DeepEqual(fleet1.ServerSpec.Pod, fleet2.ServerSpec.Pod)
+	return equality.Semantic.DeepEqual(fleet1.ServerSpec.Pod, fleet2.ServerSpec.Pod)
 }

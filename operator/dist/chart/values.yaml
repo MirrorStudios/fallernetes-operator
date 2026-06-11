@@ -23,9 +23,12 @@ manager:
     pullPolicy: IfNotPresent
 
   ## Arguments
+  ## To override the default sidecar image injected into Server pods, add:
+  ##   - --sidecar-image=myrepo/fallernetes-sidecar:v1.2.3
   ##
   args:
     - --leader-elect
+    - --sidecar-image=unfamousthomas/fallernetes-sidecar:main
 
   ## Image pull secrets
   ##

@@ -9,7 +9,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/MirrorStudios/fallernetes-operator/internal/sidecar/gen"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/sidecar/gen"
 )
 
 func newClient(pod *v1.Pod, port string) (*gen.ClientWithResponses, error) {

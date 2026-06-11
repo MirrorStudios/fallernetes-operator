@@ -6,30 +6,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
+	v1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func (k *Adapter) CreateServer(ctx context.Context, name, namespace string, labels map[string]string, spec gen.ServerSpec) error {
-	obj := serverCRD{
-		APIVersion: crdGroup + "/" + crdVersion,
-		Kind:       "Server",
-		Metadata:   crdMetadata{Name: name, Namespace: namespace, Labels: labels},
-		Spec:       serverSpecToCRD(spec),
+	server := &v1alpha1.Server{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
+		Spec:       serverSpecToOperator(spec),
 	}
-	u, err := toUnstructured(obj)
-	if err != nil {
-		return err
-	}
-	_, err = k.dynamicClient.Resource(ServerGVR).Namespace(namespace).Create(ctx, u, metav1.CreateOptions{})
-	return err
+	return k.client.Create(ctx, server)
 }
 
 func (k *Adapter) DeleteServer(ctx context.Context, name, namespace string, force bool) error {
-	err := k.dynamicClient.Resource(ServerGVR).Namespace(namespace).Delete(ctx, name, metav1.DeleteOptions{})
-	if err != nil {
+	server := &v1alpha1.Server{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
+	if err := k.client.Delete(ctx, server); err != nil {
 		return err
 	}
 	if force {
@@ -39,8 +36,8 @@ func (k *Adapter) DeleteServer(ctx context.Context, name, namespace string, forc
 }
 
 func (k *Adapter) sendDeleteAllowed(ctx context.Context, name, namespace string) error {
-	pod, err := k.clientSet.CoreV1().Pods(namespace).Get(ctx, name+"-pod", metav1.GetOptions{})
-	if err != nil {
+	pod := &corev1.Pod{}
+	if err := k.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: name + "-pod"}, pod); err != nil {
 		return err
 	}
 	payload, err := json.Marshal(map[string]any{"allowed": true})
@@ -53,10 +50,9 @@ func (k *Adapter) sendDeleteAllowed(ctx context.Context, name, namespace string)
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
 		return err
 	}
-	_ = resp.Body.Close()
-	return nil
+	return resp.Body.Close()
 }
