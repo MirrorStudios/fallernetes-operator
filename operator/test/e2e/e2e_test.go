@@ -361,8 +361,8 @@ spec:
     replicas: 2
     agePriority: oldest_first
     prioritizeAllowed: false
-  serverSpec:
-    sidecarSettings:
+  spec:
+    sidecar:
       port: 8080
     pod:
       containers:
@@ -427,8 +427,8 @@ spec:
     replicas: 2
     agePriority: oldest_first
     prioritizeAllowed: false
-  serverSpec:
-    sidecarSettings:
+  spec:
+    sidecar:
       port: 8080
     pod:
       containers:
