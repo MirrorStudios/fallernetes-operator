@@ -386,8 +386,7 @@ spec:
 				)
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
-				names := utils.GetNonEmptyLines(output)
-				g.Expect(names).To(HaveLen(2))
+				g.Expect(strings.Fields(output)).To(HaveLen(2))
 			}
 			Eventually(verifyPods, 2*time.Minute, 5*time.Second).Should(Succeed())
 
