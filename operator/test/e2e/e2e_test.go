@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -343,6 +344,152 @@ var _ = Describe("Manager", Ordered, func() {
 		})
 
 		// +kubebuilder:scaffold:e2e-webhooks-checks
+
+		It("should create Running pods for a Fleet", func() {
+			const testFleetName = "e2e-fleet-test"
+			const testNS = "default"
+
+			By("applying a sample Fleet manifest")
+			fleetYAML := fmt.Sprintf(`
+apiVersion: gameserver.falloria.com/v1alpha1
+kind: Fleet
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  scaling:
+    replicas: 2
+    agePriority: oldest_first
+    prioritizeAllowed: false
+  serverSpec:
+    sidecarSettings:
+      port: 8080
+    pod:
+      containers:
+      - name: game-server
+        image: busybox:latest
+        command: ["sh", "-c", "sleep 3600"]
+`, testFleetName, testNS)
+			tmpFile := filepath.Join(os.TempDir(), "e2e-fleet.yaml")
+			Expect(os.WriteFile(tmpFile, []byte(fleetYAML), 0644)).To(Succeed())
+
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply Fleet manifest")
+
+			By("waiting for 2 pods to appear with the fleet label")
+			verifyPods := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pods",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				names := utils.GetNonEmptyLines(output)
+				g.Expect(names).To(HaveLen(2))
+			}
+			Eventually(verifyPods, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("verifying all pods reach Running phase")
+			verifyRunning := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pods",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].status.phase}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				for _, phase := range strings.Fields(output) {
+					g.Expect(phase).To(Equal("Running"))
+				}
+			}
+			Eventually(verifyRunning, 3*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("cleaning up the Fleet")
+			cmd = exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNS)
+			_, _ = utils.Run(cmd)
+		})
+
+		It("should remove all Servers and Pods when a Fleet is deleted", func() {
+			const testFleetName = "e2e-fleet-del-test"
+			const testNS = "default"
+
+			By("creating a Fleet with 2 replicas")
+			fleetYAML := fmt.Sprintf(`
+apiVersion: gameserver.falloria.com/v1alpha1
+kind: Fleet
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  scaling:
+    replicas: 2
+    agePriority: oldest_first
+    prioritizeAllowed: false
+  serverSpec:
+    sidecarSettings:
+      port: 8080
+    pod:
+      containers:
+      - name: game-server
+        image: busybox:latest
+        command: ["sh", "-c", "sleep 3600"]
+`, testFleetName, testNS)
+			tmpFile := filepath.Join(os.TempDir(), "e2e-fleet-del.yaml")
+			Expect(os.WriteFile(tmpFile, []byte(fleetYAML), 0644)).To(Succeed())
+
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply Fleet manifest")
+
+			verifyPodsReady := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pods",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].status.phase}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				phases := strings.Fields(output)
+				g.Expect(phases).To(HaveLen(2))
+				for _, phase := range phases {
+					g.Expect(phase).To(Equal("Running"))
+				}
+			}
+			Eventually(verifyPodsReady, 3*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("deleting the Fleet")
+			cmd = exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNS, "--wait=false")
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for all Pods with the fleet label to disappear")
+			verifyPodsGone := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pods",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(strings.TrimSpace(output)).To(BeEmpty(), "expected no pods to remain")
+			}
+			Eventually(verifyPodsGone, 3*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("waiting for all Server CRs with the fleet label to disappear")
+			verifyServersGone := func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "servers",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(strings.TrimSpace(output)).To(BeEmpty(), "expected no Server CRs to remain")
+			}
+			Eventually(verifyServersGone, 3*time.Minute, 5*time.Second).Should(Succeed())
+		})
 
 		// TODO: Customize the e2e test suite with scenarios specific to your project.
 		// Consider applying sample/CR(s) and check their status and/or verifying
