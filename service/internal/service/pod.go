@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func (s *OperatorService) AddPodLabel(ctx context.Context, req gen.AddPodLabelRequestObject) (gen.AddPodLabelResponseObject, error) {

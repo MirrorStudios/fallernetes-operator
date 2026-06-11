@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func serverSpecToOperator(spec gen.ServerSpec) v1alpha1.ServerSpec {

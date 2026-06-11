@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/app"
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/app"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/gen"
 )
 
 func SetupRoutes(a *app.App) {

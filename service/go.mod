@@ -1,4 +1,4 @@
-module github.com/MirrorStudios/fallernetes-service
+module github.com/MirrorStudios/fallernetes-operator/service
 
 go 1.26.4
 

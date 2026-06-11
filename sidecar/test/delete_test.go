@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/gen"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

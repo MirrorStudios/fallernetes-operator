@@ -6,7 +6,7 @@ import (
 	v1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func (k *Adapter) CreateScaler(ctx context.Context, name, namespace string, labels map[string]string, spec gen.GameAutoscalerSpec) error {

@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/MirrorStudios/fallernetes-service/internal/gen"
+	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
 )
 
 func (k *Adapter) CreateGame(ctx context.Context, name, namespace string, labels map[string]string, spec gen.GameTypeSpec) error {

@@ -1,4 +1,4 @@
-module github.com/MirrorStudios/fallernetes-sidecar
+module github.com/MirrorStudios/fallernetes-operator/sidecar
 
 go 1.26.4
 

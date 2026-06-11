@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"sync/atomic"
 
-	"github.com/MirrorStudios/fallernetes-sidecar/internal/service"
+	"github.com/MirrorStudios/fallernetes-operator/sidecar/internal/service"
 )
 
 // App struct is where most of the state of the sidecar is stored, along with the used http Mux.

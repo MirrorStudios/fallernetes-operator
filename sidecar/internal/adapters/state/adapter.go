@@ -1,6 +1,6 @@
 package state
 
-import "github.com/MirrorStudios/fallernetes-sidecar/internal/app"
+import "github.com/MirrorStudios/fallernetes-operator/sidecar/internal/app"
 
 type StateAdapter struct {
 	app *app.App
