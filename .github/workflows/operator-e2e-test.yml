@@ -46,7 +46,7 @@ jobs:
 
       - name: Install kind
         if: needs.changes.outputs.run-tests == 'true'
-        uses: helm/kind-action@v1
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
         with:
           install_only: true
 
