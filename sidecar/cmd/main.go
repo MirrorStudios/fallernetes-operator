@@ -36,11 +36,9 @@ func main() {
 	slog.SetDefault(logger)
 
 	a := &app.App{
-		Mux:               http.NewServeMux(),
-		ShutdownRequested: false,
-		DeleteAllowed:     false,
-		Port:              port,
-		Logger:            logger,
+		Mux:    http.NewServeMux(),
+		Port:   port,
+		Logger: logger,
 	}
 
 	adapter := state.NewStateAdapter(a)

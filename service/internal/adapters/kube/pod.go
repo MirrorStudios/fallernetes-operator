@@ -2,36 +2,28 @@ package kube
 
 import (
 	"context"
-	"maps"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func (k *Adapter) AddPodLabel(ctx context.Context, serverName, namespace, key, value string) error {
-	pods := k.clientSet.CoreV1().Pods(namespace)
-	pod, err := pods.Get(ctx, serverName+"-pod", metav1.GetOptions{})
-	if err != nil {
+	pod := &corev1.Pod{}
+	if err := k.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: serverName + "-pod"}, pod); err != nil {
 		return err
 	}
-	labels := pod.GetLabels()
-	if labels == nil {
-		labels = map[string]string{}
+	if pod.Labels == nil {
+		pod.Labels = map[string]string{}
 	}
-	labels[key] = value
-	pod.SetLabels(labels)
-	_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
-	return err
+	pod.Labels[key] = value
+	return k.client.Update(ctx, pod)
 }
 
 func (k *Adapter) RemovePodLabel(ctx context.Context, serverName, namespace, key string) error {
-	pods := k.clientSet.CoreV1().Pods(namespace)
-	pod, err := pods.Get(ctx, serverName+"-pod", metav1.GetOptions{})
-	if err != nil {
+	pod := &corev1.Pod{}
+	if err := k.client.Get(ctx, types.NamespacedName{Namespace: namespace, Name: serverName + "-pod"}, pod); err != nil {
 		return err
 	}
-	labels := maps.Clone(pod.GetLabels())
-	delete(labels, key)
-	pod.SetLabels(labels)
-	_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
-	return err
+	delete(pod.Labels, key)
+	return k.client.Update(ctx, pod)
 }

@@ -63,11 +63,12 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var defaultSidecarImage string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
+	flag.BoolVar(&enableLeaderElection, "leader-elect", true,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&secureMetrics, "metrics-secure", true,
@@ -81,8 +82,10 @@ func main() {
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.StringVar(&defaultSidecarImage, "sidecar-image", "unfamousthomas/fallernetes-sidecar:main",
+		"Default sidecar image injected into Server pods when none is specified")
 	opts := zap.Options{
-		Development: true,
+		Development: false,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -213,30 +216,21 @@ func main() {
 		setupLog.Error(err, "Failed to create controller", "controller", "gametype")
 		os.Exit(1)
 	}
-	// nolint:goconst
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+	const enableWebhooksEnv = "ENABLE_WEBHOOKS"
+	if os.Getenv(enableWebhooksEnv) != "false" {
 		if err := webhookv1alpha1.SetupGameTypeWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create webhook", "webhook", "GameType")
 			os.Exit(1)
 		}
-	}
-	// nolint:goconst
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
 		if err := webhookv1alpha1.SetupGameTypeAutoscalerWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create webhook", "webhook", "GameTypeAutoscaler")
 			os.Exit(1)
 		}
-	}
-	// nolint:goconst
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
 		if err := webhookv1alpha1.SetupFleetWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "Failed to create webhook", "webhook", "Fleet")
 			os.Exit(1)
 		}
-	}
-	// nolint:goconst
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err := webhookv1alpha1.SetupServerWebhookWithManager(mgr); err != nil {
+		if err := webhookv1alpha1.SetupServerWebhookWithManager(mgr, defaultSidecarImage); err != nil {
 			setupLog.Error(err, "Failed to create webhook", "webhook", "Server")
 			os.Exit(1)
 		}

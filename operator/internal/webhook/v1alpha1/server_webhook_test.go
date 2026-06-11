@@ -37,7 +37,7 @@ var _ = Describe("Server Webhook", func() {
 		oldObj = &gameserverv1alpha1.Server{}
 		validator = ServerCustomValidator{}
 		Expect(validator).NotTo(BeNil(), "Expected validator to be initialized")
-		defaulter = ServerCustomDefaulter{}
+		defaulter = ServerCustomDefaulter{DefaultSidecarImage: "unfamousthomas/fallernetes-sidecar:main"}
 		Expect(defaulter).NotTo(BeNil(), "Expected defaulter to be initialized")
 		Expect(oldObj).NotTo(BeNil(), "Expected oldObj to be initialized")
 		Expect(obj).NotTo(BeNil(), "Expected obj to be initialized")

@@ -11,17 +11,17 @@ func NewStateAdapter(a *app.App) *StateAdapter {
 }
 
 func (s *StateAdapter) IsDeleteAllowed() bool {
-	return s.app.DeleteAllowed
+	return s.app.DeleteAllowed.Load()
 }
 
 func (s *StateAdapter) SetDeleteAllowed(allowed bool) {
-	s.app.DeleteAllowed = allowed
+	s.app.DeleteAllowed.Store(allowed)
 }
 
 func (s *StateAdapter) IsShutdownRequested() bool {
-	return s.app.ShutdownRequested
+	return s.app.ShutdownRequested.Load()
 }
 
 func (s *StateAdapter) SetShutdownRequested(shutdown bool) {
-	s.app.ShutdownRequested = shutdown
+	s.app.ShutdownRequested.Store(shutdown)
 }
