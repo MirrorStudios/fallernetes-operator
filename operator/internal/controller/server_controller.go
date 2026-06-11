@@ -52,6 +52,7 @@ type ServerReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=servers/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;update;patch;delete
 
 func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	server := &gameserverv1alpha1.Server{}
