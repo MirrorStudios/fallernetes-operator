@@ -118,7 +118,7 @@ var _ = BeforeSuite(func() {
 	err = SetupFleetWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = SetupServerWebhookWithManager(mgr)
+	err = SetupServerWebhookWithManager(mgr, "unfamousthomas/fallernetes-sidecar:main")
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:webhook
