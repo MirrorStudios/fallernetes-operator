@@ -35,10 +35,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
-	"github.com/MirrorStudios/fallernetes-operator/internal/autoscaler"
-	"github.com/MirrorStudios/fallernetes-operator/internal/controller"
-	webhookv1alpha1 "github.com/MirrorStudios/fallernetes-operator/internal/webhook/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/autoscaler"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/controller"
+	webhookv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 

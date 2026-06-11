@@ -1,4 +1,4 @@
-module github.com/MirrorStudios/fallernetes-operator
+module github.com/MirrorStudios/fallernetes-operator/operator
 
 go 1.25.7
 

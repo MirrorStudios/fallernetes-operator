@@ -3,7 +3,7 @@ module github.com/MirrorStudios/fallernetes-service
 go 1.26.4
 
 require (
-	github.com/MirrorStudios/fallernetes-operator v0.0.0
+	github.com/MirrorStudios/fallernetes-operator/operator v0.0.0-00010101000000-000000000000
 	github.com/oapi-codegen/oapi-codegen/v2 v2.7.1
 	github.com/oapi-codegen/runtime v1.4.1
 	github.com/stretchr/testify v1.11.1
@@ -69,3 +69,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/MirrorStudios/fallernetes-operator/operator => ../operator

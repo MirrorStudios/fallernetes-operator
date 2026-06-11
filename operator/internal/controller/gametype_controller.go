@@ -20,8 +20,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/MirrorStudios/fallernetes-operator/internal/builders"
-	"github.com/MirrorStudios/fallernetes-operator/internal/utils"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/builders"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/utils"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
-	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/api/v1alpha1"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 )
 
 const TypeFinalizer = "gametype.falloria.com/finalizer"

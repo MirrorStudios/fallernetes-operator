@@ -4,9 +4,11 @@ import (
 	"log"
 	"net/http"
 
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/kubernetes"
+	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kubeadapter "github.com/MirrorStudios/fallernetes-service/internal/adapters/kube"
 	"github.com/MirrorStudios/fallernetes-service/internal/service"
@@ -22,16 +24,21 @@ func CreateApp() *App {
 	if err != nil {
 		log.Fatal("Could not create config: ", err)
 	}
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		log.Fatal("Could not create dynamic client: ", err)
+
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		log.Fatal("Could not add client-go scheme: ", err)
 	}
-	clientSet, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Fatal("Could not create clientset: ", err)
+	if err := gameserverv1alpha1.AddToScheme(scheme); err != nil {
+		log.Fatal("Could not add gameserver scheme: ", err)
 	}
 
-	adapter := kubeadapter.NewKubeAdapter(dynamicClient, clientSet)
+	k8sClient, err := client.New(config, client.Options{Scheme: scheme})
+	if err != nil {
+		log.Fatal("Could not create k8s client: ", err)
+	}
+
+	adapter := kubeadapter.NewKubeAdapter(k8sClient)
 	svc := service.NewOperatorService(adapter, adapter, adapter, adapter, adapter)
 
 	return &App{
