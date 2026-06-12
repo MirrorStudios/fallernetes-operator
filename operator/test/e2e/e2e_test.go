@@ -572,7 +572,8 @@ type tokenRequest struct {
 }
 
 // writeFleetManifest writes a Fleet manifest to a temp file and returns its path.
-// The fleet uses the sidecarImage loaded into Kind and a 30s force-delete timeout as a safety net.
+// No force-delete timeout is set: deletion must be approved via the sidecar protocol so that
+// tests catch regressions in the sidecar communication path.
 func writeFleetManifest(filename, name, ns string, replicas int) string {
 	yaml := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
 kind: Fleet
@@ -585,7 +586,6 @@ spec:
     agePriority: oldest_first
     prioritizeAllowed: false
   spec:
-    timeout: 30s
     sidecar:
       port: 8080
       image: %s
