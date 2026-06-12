@@ -38,6 +38,7 @@ import (
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 	"github.com/MirrorStudios/fallernetes-operator/operator/internal/autoscaler"
 	"github.com/MirrorStudios/fallernetes-operator/operator/internal/controller"
+	"github.com/MirrorStudios/fallernetes-operator/operator/internal/sidecar"
 	webhookv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/internal/webhook/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
@@ -184,17 +185,19 @@ func main() {
 	}
 
 	if err := (&controller.FleetReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("fleet"),
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Recorder:        mgr.GetEventRecorderFor("fleet"),
+		DeletionChecker: sidecar.ProdDeletionChecker{},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "fleet")
 		os.Exit(1)
 	}
 	if err := (&controller.ServerReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("server"),
+		Client:          mgr.GetClient(),
+		Scheme:          mgr.GetScheme(),
+		Recorder:        mgr.GetEventRecorderFor("server"),
+		DeletionAllowed: sidecar.ProdDeletionChecker{},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "server")
 		os.Exit(1)
