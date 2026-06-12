@@ -78,6 +78,19 @@ var _ = Describe("Manager", Ordered, func() {
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
 	// and deleting the namespace.
 	AfterAll(func() {
+		// Wait for fleet resources to be fully deleted (finalizers removed) before undeploying.
+		// DeferCleanup uses --wait=false, so fleets may still have finalizers when AfterAll runs.
+		// Undeploying while finalizers are pending blocks kubectl delete (waiting on webhook/namespace).
+		By("waiting for all fleets in default namespace to be fully deleted")
+		Eventually(func(g Gomega) {
+			cmd := exec.Command("kubectl", "get", "fleets",
+				"-n", "default",
+				"-o", "jsonpath={.items[*].metadata.name}")
+			output, err := utils.Run(cmd)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(strings.TrimSpace(output)).To(BeEmpty())
+		}, 3*time.Minute, 5*time.Second).Should(Succeed())
+
 		By("cleaning up the curl pod for metrics")
 		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
 		_, _ = utils.Run(cmd)
