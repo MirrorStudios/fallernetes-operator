@@ -349,30 +349,14 @@ var _ = Describe("Manager", Ordered, func() {
 			const testFleetName = "e2e-fleet-test"
 			const testNS = "default"
 
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNS,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
 			By("applying a sample Fleet manifest")
-			fleetYAML := fmt.Sprintf(`
-apiVersion: gameserver.falloria.com/v1alpha1
-kind: Fleet
-metadata:
-  name: %s
-  namespace: %s
-spec:
-  scaling:
-    replicas: 2
-    agePriority: oldest_first
-    prioritizeAllowed: false
-  spec:
-    timeout: 30s
-    sidecar:
-      port: 8080
-    pod:
-      containers:
-      - name: game-server
-        image: busybox:latest
-        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
-`, testFleetName, testNS)
-			tmpFile := filepath.Join(os.TempDir(), "e2e-fleet.yaml")
-			Expect(os.WriteFile(tmpFile, []byte(fleetYAML), 0644)).To(Succeed())
+			tmpFile := writeFleetManifest("e2e-fleet.yaml", testFleetName, testNS, 2)
 
 			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
 			_, err := utils.Run(cmd)
@@ -405,10 +389,6 @@ spec:
 				}
 			}
 			Eventually(verifyRunning, 3*time.Minute, 5*time.Second).Should(Succeed())
-
-			By("cleaning up the Fleet")
-			cmd = exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNS)
-			_, _ = utils.Run(cmd)
 		})
 
 		It("should remove all Servers and Pods when a Fleet is deleted", func() {
@@ -416,28 +396,7 @@ spec:
 			const testNS = "default"
 
 			By("creating a Fleet with 2 replicas")
-			fleetYAML := fmt.Sprintf(`
-apiVersion: gameserver.falloria.com/v1alpha1
-kind: Fleet
-metadata:
-  name: %s
-  namespace: %s
-spec:
-  scaling:
-    replicas: 2
-    agePriority: oldest_first
-    prioritizeAllowed: false
-  spec:
-    sidecar:
-      port: 8080
-    pod:
-      containers:
-      - name: game-server
-        image: busybox:latest
-        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
-`, testFleetName, testNS)
-			tmpFile := filepath.Join(os.TempDir(), "e2e-fleet-del.yaml")
-			Expect(os.WriteFile(tmpFile, []byte(fleetYAML), 0644)).To(Succeed())
+			tmpFile := writeFleetManifest("e2e-fleet-del.yaml", testFleetName, testNS, 2)
 
 			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
 			_, err := utils.Run(cmd)
@@ -491,15 +450,68 @@ spec:
 			Eventually(verifyServersGone, 3*time.Minute, 5*time.Second).Should(Succeed())
 		})
 
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput, err := getMetricsOutput()
-		// Expect(err).NotTo(HaveOccurred(), "Failed to retrieve logs from curl pod")
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+		It("should remove excess pods when a Fleet is scaled down", func() {
+			const testFleetName = "e2e-fleet-scaledown-test"
+			const testNS = "default"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNS,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("applying a Fleet with 3 replicas")
+			tmpFile := writeFleetManifest("e2e-fleet-scaledown.yaml", testFleetName, testNS, 3)
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for 3 pods to appear")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pods",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(strings.Fields(output)).To(HaveLen(3))
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("patching fleet replicas down to 1")
+			cmd = exec.Command("kubectl", "patch", "fleet", testFleetName,
+				"-n", testNS,
+				"--type=merge",
+				"-p", `{"spec":{"scaling":{"replicas":1}}}`,
+			)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting until only 1 pod remains")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pods",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(strings.Fields(output)).To(HaveLen(1))
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("waiting until only 1 Server CR remains")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "servers",
+					"-l", fmt.Sprintf("fleet=%s", testFleetName),
+					"-n", testNS,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(strings.Fields(output)).To(HaveLen(1))
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
 	})
 })
 
@@ -557,4 +569,33 @@ type tokenRequest struct {
 	Status struct {
 		Token string `json:"token"`
 	} `json:"status"`
+}
+
+// writeFleetManifest writes a Fleet manifest to a temp file and returns its path.
+// The fleet uses the sidecarImage loaded into Kind and a 30s force-delete timeout as a safety net.
+func writeFleetManifest(filename, name, ns string, replicas int) string {
+	yaml := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: Fleet
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  scaling:
+    replicas: %d
+    agePriority: oldest_first
+    prioritizeAllowed: false
+  spec:
+    timeout: 30s
+    sidecar:
+      port: 8080
+      image: %s
+    pod:
+      containers:
+      - name: game-server
+        image: busybox:latest
+        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
+`, name, ns, replicas, sidecarImage)
+	path := filepath.Join(os.TempDir(), filename)
+	Expect(os.WriteFile(path, []byte(yaml), 0644)).To(Succeed())
+	return path
 }
