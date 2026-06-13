@@ -928,6 +928,7 @@ func waitForFleetPodsRunning(fleetName, ns string) func(Gomega) {
 
 // writeServerManifest writes a Server manifest to a temp file and returns its path.
 func writeServerManifest(name, ns, command string) string {
+	escapedCmd := strings.ReplaceAll(command, `"`, `\"`)
 	yaml := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
 kind: Server
 metadata:
@@ -942,7 +943,7 @@ spec:
     - name: game-server
       image: busybox:latest
       command: ["sh", "-c", "%s"]
-`, name, ns, sidecarImage, command)
+`, name, ns, sidecarImage, escapedCmd)
 	path := filepath.Join(os.TempDir(), name+".yaml")
 	Expect(os.WriteFile(path, []byte(yaml), 0644)).To(Succeed())
 	return path
