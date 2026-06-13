@@ -78,8 +78,15 @@ var _ = Describe("Manager", Ordered, func() {
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
 	// and deleting the namespace.
 	AfterAll(func() {
+		// In Ginkgo v2, DeferCleanup registered in the last It of an Ordered container runs after
+		// AfterAll, not before it. Explicitly delete all remaining fleets here so AfterAll does not
+		// depend on DeferCleanup having already submitted the delete requests.
+		By("deleting any remaining fleets in default namespace")
+		cmd := exec.Command("kubectl", "delete", "fleet", "--all", "-n", "default",
+			"--wait=false", "--ignore-not-found=true")
+		_, _ = utils.Run(cmd)
+
 		// Wait for fleet resources to be fully deleted (finalizers removed) before undeploying.
-		// DeferCleanup uses --wait=false, so fleets may still have finalizers when AfterAll runs.
 		// Undeploying while finalizers are pending blocks kubectl delete (waiting on webhook/namespace).
 		By("waiting for all fleets in default namespace to be fully deleted")
 		Eventually(func(g Gomega) {
@@ -92,7 +99,7 @@ var _ = Describe("Manager", Ordered, func() {
 		}, 3*time.Minute, 5*time.Second).Should(Succeed())
 
 		By("cleaning up the curl pod for metrics")
-		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
+		cmd = exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
 		_, _ = utils.Run(cmd)
 
 		By("undeploying the controller-manager")
