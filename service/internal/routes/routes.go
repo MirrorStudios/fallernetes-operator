@@ -2,7 +2,6 @@ package routes
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,20 +29,22 @@ func SetupRoutes(a *app.App) {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 
-	log.Printf("Starting http server on port %s", port)
+	a.Logger.Info("Starting http server", "port", port)
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Error starting server: %v", err)
+			a.Logger.Error("Error starting server", "error", err)
+			os.Exit(1)
 		}
 	}()
 
 	<-ctx.Done()
-	log.Println("Shutting down server")
+	a.Logger.Info("Shutting down server")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Server shutdown failed: %v", err)
+		a.Logger.Error("Server shutdown failed", "error", err)
+		os.Exit(1)
 	}
-	log.Println("Server stopped")
+	a.Logger.Info("Server stopped")
 }
