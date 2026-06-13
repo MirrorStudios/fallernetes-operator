@@ -429,6 +429,15 @@ spec:
 				cmd := exec.Command("kubectl", "delete", "gametype", testGTName, "-n", testNamespace,
 					"--wait=false", "--ignore-not-found=true")
 				_, _ = utils.Run(cmd)
+				Eventually(func(g Gomega) {
+					cmd := exec.Command("kubectl", "get", "fleets",
+						"-l", fmt.Sprintf("gametype=%s", testGTName),
+						"-n", testNamespace,
+						"-o", "jsonpath={.items[*].metadata.name}",
+					)
+					output, _ := utils.Run(cmd)
+					g.Expect(strings.TrimSpace(output)).To(BeEmpty())
+				}, 2*time.Minute, 5*time.Second).Should(Succeed())
 			})
 
 			By("applying a GameType manifest")
@@ -493,6 +502,15 @@ spec:
 				cmd = exec.Command("kubectl", "delete", "gametype", testGTName, "-n", testNamespace,
 					"--wait=false", "--ignore-not-found=true")
 				_, _ = utils.Run(cmd)
+				Eventually(func(g Gomega) {
+					cmd := exec.Command("kubectl", "get", "fleets",
+						"-l", fmt.Sprintf("gametype=%s", testGTName),
+						"-n", testNamespace,
+						"-o", "jsonpath={.items[*].metadata.name}",
+					)
+					output, _ := utils.Run(cmd)
+					g.Expect(strings.TrimSpace(output)).To(BeEmpty())
+				}, 2*time.Minute, 5*time.Second).Should(Succeed())
 			})
 
 			By("creating a GameType for the autoscaler to target")
