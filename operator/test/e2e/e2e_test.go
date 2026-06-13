@@ -557,6 +557,85 @@ spec:
 			}, 2*time.Minute, 5*time.Second).Should(Succeed())
 		})
 
+		It("should create a new Fleet when GameType pod spec changes", func() {
+			const testGTName = "e2e-gametype-rolling-test"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "gametype", testGTName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+				Eventually(func(g Gomega) {
+					cmd := exec.Command("kubectl", "get", "fleets",
+						"-l", fmt.Sprintf("gametype=%s", testGTName),
+						"-n", testNamespace,
+						"-o", "jsonpath={.items[*].metadata.name}",
+					)
+					output, _ := utils.Run(cmd)
+					g.Expect(strings.TrimSpace(output)).To(BeEmpty())
+				}, 2*time.Minute, 5*time.Second).Should(Succeed())
+			})
+
+			By("applying initial GameType")
+			gtYAML := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: GameType
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  fleetSpec:
+    scaling:
+      replicas: 1
+      agePriority: oldest_first
+      prioritizeAllowed: false
+    spec:
+      sidecar:
+        port: 8080
+        image: %s
+      pod:
+        containers:
+        - name: game-server
+          image: busybox:1.35
+          command: ["sh", "-c", "sleep 3600"]
+`, testGTName, testNamespace, sidecarImage)
+			tmpFile := filepath.Join(os.TempDir(), "e2e-gametype-rolling.yaml")
+			Expect(os.WriteFile(tmpFile, []byte(gtYAML), 0644)).To(Succeed())
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for the initial Fleet to appear")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "fleets",
+					"-l", fmt.Sprintf("gametype=%s", testGTName),
+					"-n", testNamespace,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(utils.GetNonEmptyLines(output)).To(HaveLen(1))
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("patching the GameType to change the container image")
+			cmd = exec.Command("kubectl", "patch", "gametype", testGTName,
+				"-n", testNamespace, "--type=merge",
+				"-p", `{"spec":{"fleetSpec":{"spec":{"pod":{"containers":[{"name":"game-server","image":"busybox:1.36","command":["sh","-c","sleep 3600"]}]}}}}}`,
+			)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for a second Fleet to appear (rolling update in progress)")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "fleets",
+					"-l", fmt.Sprintf("gametype=%s", testGTName),
+					"-n", testNamespace,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(utils.GetNonEmptyLines(output)).To(HaveLen(2))
+			}, 3*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
 		It("should accept and reconcile a GameTypeAutoscaler without validation errors", func() {
 			const testASName = "e2e-autoscaler-test"
 			const testGTName = "e2e-autoscaler-gametype"
