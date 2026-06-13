@@ -482,6 +482,102 @@ spec:
 			}, 2*time.Minute, 5*time.Second).Should(Succeed())
 		})
 
+		It("should accept and reconcile a GameTypeAutoscaler without validation errors", func() {
+			const testASName = "e2e-autoscaler-test"
+			const testGTName = "e2e-autoscaler-gametype"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "gametypeautoscaler", testASName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+				cmd = exec.Command("kubectl", "delete", "gametype", testGTName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("creating a GameType for the autoscaler to target")
+			gtYAML := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: GameType
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  fleetSpec:
+    scaling:
+      replicas: 1
+      agePriority: oldest_first
+      prioritizeAllowed: false
+    serverSpec:
+      sidecarSettings:
+        port: 8080
+      pod:
+        containers:
+        - name: game-server
+          image: busybox:latest
+          command: ["sh", "-c", "sleep 3600"]
+`, testGTName, testNamespace)
+			gtFile := filepath.Join(os.TempDir(), "e2e-autoscaler-gametype.yaml")
+			Expect(os.WriteFile(gtFile, []byte(gtYAML), 0644)).To(Succeed())
+			cmd := exec.Command("kubectl", "apply", "-f", gtFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("applying a GameTypeAutoscaler manifest")
+			// url points to an unreachable host; webhook call failures are expected and not tested here.
+			// Correct field names from the types: spec.policy (not autoscalePolicy), spec.sync.interval
+			// (not sync.time), and lowercase enum values: webhook / fixedinterval.
+			asYAML := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: GameTypeAutoscaler
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  gameTypeName: %s
+  policy:
+    type: webhook
+    webhook:
+      url: http://localhost:9999
+      path: scale
+  sync:
+    type: fixedinterval
+    interval: 30s
+`, testASName, testNamespace, testGTName)
+			tmpFile := filepath.Join(os.TempDir(), "e2e-autoscaler.yaml")
+			Expect(os.WriteFile(tmpFile, []byte(asYAML), 0644)).To(Succeed())
+			cmd = exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "GameTypeAutoscaler should be accepted by the webhook")
+
+			By("verifying the resource exists in the cluster")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "gametypeautoscaler", testASName,
+					"-n", testNamespace, "-o", "jsonpath={.metadata.name}")
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(Equal(testASName))
+			}, time.Minute, 5*time.Second).Should(Succeed())
+
+			By("checking that no validation error events were emitted for the autoscaler")
+			// GameautoscalerWebhook warnings are expected (no server in e2e); only check that the
+			// CR fields were accepted as valid by the controller.
+			validationReasons := []string{
+				"GameAutoscalerInvalidTarget",
+				"GameautoscalerInvalidAutoscalePolicy",
+				"GameautoscalerInvalidSyncType",
+			}
+			Consistently(func(g Gomega) {
+				for _, reason := range validationReasons {
+					cmd := exec.Command("kubectl", "get", "events",
+						"-n", testNamespace,
+						"--field-selector", fmt.Sprintf("involvedObject.name=%s,reason=%s", testASName, reason),
+						"-o", "jsonpath={.items[*].reason}",
+					)
+					output, _ := utils.Run(cmd)
+					g.Expect(output).To(BeEmpty())
+				}
+			}, 10*time.Second, 2*time.Second).Should(Succeed())
+		})
+
 		It("should create Running pods for a Fleet", func() {
 			const testFleetName = "e2e-fleet-test"
 
