@@ -378,23 +378,8 @@ var _ = Describe("Manager", Ordered, func() {
 			})
 
 			By("applying a Server manifest")
-			serverYAML := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
-kind: Server
-metadata:
-  name: %s
-  namespace: %s
-spec:
-  sidecar:
-    port: 8080
-    image: %s
-  pod:
-    containers:
-    - name: game-server
-      image: busybox:latest
-      command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
-`, testServerName, testNamespace, sidecarImage)
-			tmpFile := filepath.Join(os.TempDir(), "e2e-server.yaml")
-			Expect(os.WriteFile(tmpFile, []byte(serverYAML), 0644)).To(Succeed())
+			tmpFile := writeServerManifest(testServerName, testNamespace,
+				`while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{"allowed":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done`)
 			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
 			_, err := utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred())
@@ -421,6 +406,85 @@ spec:
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(output).To(Equal("Running"))
 			}, 3*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
+		It("should inject the sidecar container into the Server pod", func() {
+			const testServerName = "e2e-server-sidecar-test"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "server", testServerName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("applying a Server manifest")
+			tmpFile := writeServerManifest(testServerName, testNamespace, "sleep 3600")
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			podName := testServerName + "-pod"
+
+			By("waiting for the pod to appear")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", podName,
+					"-n", testNamespace,
+					"-o", "jsonpath={.metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(Equal(podName))
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("verifying the sidecar container is present in the pod spec")
+			cmd = exec.Command("kubectl", "get", "pod", podName,
+				"-n", testNamespace,
+				"-o", "jsonpath={.spec.containers[*].name}",
+			)
+			output, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).To(ContainSubstring("fallernetes-sidecar"))
+		})
+
+		It("should remove the pod when a Server is deleted", func() {
+			const testServerName = "e2e-server-del-test"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "server", testServerName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("applying a Server manifest")
+			tmpFile := writeServerManifest(testServerName, testNamespace, "sleep 3600")
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			podName := testServerName + "-pod"
+
+			By("waiting for the pod to exist")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", podName,
+					"-n", testNamespace,
+					"-o", "jsonpath={.metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(Equal(podName))
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("deleting the Server")
+			cmd = exec.Command("kubectl", "delete", "server", testServerName, "-n", testNamespace, "--wait=false")
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for the pod to be gone")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", podName, "-n", testNamespace)
+				_, err := utils.Run(cmd)
+				g.Expect(err).To(HaveOccurred())
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
 		})
 
 		It("should create a Fleet for a GameType", func() {
@@ -781,6 +845,28 @@ func waitForFleetPodsRunning(fleetName, ns string) func(Gomega) {
 			g.Expect(phase).To(Equal("Running"))
 		}
 	}
+}
+
+// writeServerManifest writes a Server manifest to a temp file and returns its path.
+func writeServerManifest(name, ns, command string) string {
+	yaml := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: Server
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  sidecar:
+    port: 8080
+    image: %s
+  pod:
+    containers:
+    - name: game-server
+      image: busybox:latest
+      command: ["sh", "-c", "%s"]
+`, name, ns, sidecarImage, command)
+	path := filepath.Join(os.TempDir(), name+".yaml")
+	Expect(os.WriteFile(path, []byte(yaml), 0644)).To(Succeed())
+	return path
 }
 
 // writeFleetManifest writes a Fleet manifest to a temp file and returns its path.
