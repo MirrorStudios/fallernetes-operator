@@ -386,12 +386,13 @@ metadata:
 spec:
   sidecar:
     port: 8080
+    image: %s
   pod:
     containers:
     - name: game-server
       image: busybox:latest
-      command: ["sh", "-c", "sleep 3600"]
-`, testServerName, testNamespace)
+      command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
+`, testServerName, testNamespace, sidecarImage)
 			tmpFile := filepath.Join(os.TempDir(), "e2e-server.yaml")
 			Expect(os.WriteFile(tmpFile, []byte(serverYAML), 0644)).To(Succeed())
 			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
@@ -455,12 +456,13 @@ spec:
     spec:
       sidecar:
         port: 8080
+        image: %s
       pod:
         containers:
         - name: game-server
           image: busybox:latest
-          command: ["sh", "-c", "sleep 3600"]
-`, testGTName, testNamespace)
+          command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
+`, testGTName, testNamespace, sidecarImage)
 			tmpFile := filepath.Join(os.TempDir(), "e2e-gametype.yaml")
 			Expect(os.WriteFile(tmpFile, []byte(gtYAML), 0644)).To(Succeed())
 			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
@@ -528,12 +530,13 @@ spec:
     spec:
       sidecar:
         port: 8080
+        image: %s
       pod:
         containers:
         - name: game-server
           image: busybox:latest
-          command: ["sh", "-c", "sleep 3600"]
-`, testGTName, testNamespace)
+          command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
+`, testGTName, testNamespace, sidecarImage)
 			gtFile := filepath.Join(os.TempDir(), "e2e-autoscaler-gametype.yaml")
 			Expect(os.WriteFile(gtFile, []byte(gtYAML), 0644)).To(Succeed())
 			cmd := exec.Command("kubectl", "apply", "-f", gtFile)
