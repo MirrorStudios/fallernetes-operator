@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/MirrorStudios/fallernetes-operator/operator/internal/builders"
 	"github.com/MirrorStudios/fallernetes-operator/operator/internal/sidecar"
@@ -78,7 +79,10 @@ func (r *ServerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if server.DeletionTimestamp != nil || !server.GetDeletionTimestamp().IsZero() {
 		if err := r.handleDeletion(ctx, server); err != nil {
 			if err.Error() == "server deletion not allowed" && !r.ErrorOnNotAllowed {
-				return ctrl.Result{Requeue: true}, nil
+				// RequeueAfter calls Queue.Forget() before re-adding, which resets the
+				// failure count. Requeue:true does NOT call Forget(), so it still
+				// accumulates exponential backoff — same as returning an error.
+				return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 			}
 			return ctrl.Result{}, fmt.Errorf("failed to handle server deletion: %s", err)
 		}
@@ -263,13 +267,16 @@ func (r *ServerReconciler) handleDeletion(ctx context.Context, server *gameserve
 	pod := &corev1.Pod{}
 	namespacedName := types.NamespacedName{Namespace: server.Namespace, Name: server.Name + "-pod"}
 	if err := r.Get(ctx, namespacedName, pod); err != nil {
+		if client.IgnoreNotFound(err) == nil {
+			return nil
+		}
 		return err
 	}
 	allowed, err := r.DeletionAllowed.IsDeletionAllowed(server, pod)
 	if err != nil {
 		r.emitEvent(pod, corev1.EventTypeWarning, utils.ReasonServerDeletionNotAllowed, "Deletion request did not succeed")
 		r.emitEvent(server, corev1.EventTypeWarning, utils.ReasonServerDeletionNotAllowed, "Deletion request did not succeed")
-		return fmt.Errorf("failed to check for deletion for server: %s", err)
+		return errors.New("server deletion not allowed")
 	}
 	if !allowed {
 		r.emitEvent(pod, corev1.EventTypeWarning, utils.ReasonServerDeletionNotAllowed, "Server did not respond with allowed")
