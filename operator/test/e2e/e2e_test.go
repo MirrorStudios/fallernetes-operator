@@ -368,6 +368,120 @@ var _ = Describe("Manager", Ordered, func() {
 
 		// +kubebuilder:scaffold:e2e-webhooks-checks
 
+		It("should create a Running pod for a Server", func() {
+			const testServerName = "e2e-server-test"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "server", testServerName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("applying a Server manifest")
+			serverYAML := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: Server
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  sidecarSettings:
+    port: 8080
+  pod:
+    containers:
+    - name: game-server
+      image: busybox:latest
+      command: ["sh", "-c", "sleep 3600"]
+`, testServerName, testNamespace)
+			tmpFile := filepath.Join(os.TempDir(), "e2e-server.yaml")
+			Expect(os.WriteFile(tmpFile, []byte(serverYAML), 0644)).To(Succeed())
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for the pod to appear")
+			podName := testServerName + "-pod"
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", podName,
+					"-n", testNamespace,
+					"-o", "jsonpath={.metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(Equal(podName))
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("waiting for the pod to reach Running phase")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "pod", podName,
+					"-n", testNamespace,
+					"-o", "jsonpath={.status.phase}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(Equal("Running"))
+			}, 3*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
+		It("should create a Fleet for a GameType", func() {
+			const testGTName = "e2e-gametype-test"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "gametype", testGTName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("applying a GameType manifest")
+			gtYAML := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: GameType
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  fleetSpec:
+    scaling:
+      replicas: 1
+      agePriority: oldest_first
+      prioritizeAllowed: false
+    serverSpec:
+      sidecarSettings:
+        port: 8080
+      pod:
+        containers:
+        - name: game-server
+          image: busybox:latest
+          command: ["sh", "-c", "sleep 3600"]
+`, testGTName, testNamespace)
+			tmpFile := filepath.Join(os.TempDir(), "e2e-gametype.yaml")
+			Expect(os.WriteFile(tmpFile, []byte(gtYAML), 0644)).To(Succeed())
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for a Fleet labeled with the gametype name to appear")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "fleets",
+					"-l", fmt.Sprintf("gametype=%s", testGTName),
+					"-n", testNamespace,
+					"-o", "jsonpath={.items[*].metadata.name}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(utils.GetNonEmptyLines(output)).NotTo(BeEmpty())
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("verifying the GameType status records the fleet name")
+			Eventually(func(g Gomega) {
+				cmd := exec.Command("kubectl", "get", "gametype", testGTName,
+					"-n", testNamespace,
+					"-o", "jsonpath={.status.currentFleetName}",
+				)
+				output, err := utils.Run(cmd)
+				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).NotTo(BeEmpty())
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
 		It("should create Running pods for a Fleet", func() {
 			const testFleetName = "e2e-fleet-test"
 
