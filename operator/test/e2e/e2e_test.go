@@ -623,16 +623,16 @@ spec:
 			_, err = utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("waiting for a second Fleet to appear (rolling update in progress)")
+			By("waiting for the rolling update to produce a fleet with the new image")
 			Eventually(func(g Gomega) {
 				cmd := exec.Command("kubectl", "get", "fleets",
 					"-l", fmt.Sprintf("gametype=%s", testGTName),
 					"-n", testNamespace,
-					"-o", "jsonpath={.items[*].metadata.name}",
+					"-o", "jsonpath={.items[*].spec.spec.pod.containers[*].image}",
 				)
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(utils.GetNonEmptyLines(output)).To(HaveLen(2))
+				g.Expect(output).To(ContainSubstring("busybox:1.36"))
 			}, 3*time.Minute, 5*time.Second).Should(Succeed())
 		})
 
