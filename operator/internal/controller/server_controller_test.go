@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -183,6 +184,44 @@ var _ = Describe("Server Controller", func() {
 			pod, err := getPod(serverName)
 			if err == nil {
 				Expect(pod.Finalizers).NotTo(ContainElement(ServerFinalizer))
+			}
+		})
+
+		It("requeues without returning an error when sidecar returns an HTTP error", func() {
+			setupServer()
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), server)).To(Succeed())
+
+			errored := FakeDeletion{Allow: false, Err: fmt.Errorf("connection refused")}
+			// Must return nil (RequeueAfter path), not an error that triggers exponential backoff
+			Expect(reconcileServer(serverName, errored)).To(Succeed())
+
+			// Server still present — finalizer not removed because deletion wasn't confirmed
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(server.Finalizers).To(ContainElement(ServerFinalizer))
+		})
+
+		It("proceeds with server finalizer removal when pod is already gone", func() {
+			setupServer()
+
+			// Remove the pod's finalizer and delete it so it's truly gone
+			pod, err := getPod(serverName)
+			Expect(err).NotTo(HaveOccurred())
+			clearFinalizers(pod)
+			Expect(k8sClient.Delete(context.Background(), pod)).To(Succeed())
+
+			server := &gameserverv1alpha1.Server{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, server)).To(Succeed())
+			Expect(k8sClient.Delete(context.Background(), server)).To(Succeed())
+
+			// handleDeletion: pod NotFound → returns nil → finalizer removed
+			Expect(reconcileServer(serverName, blocked)).To(Succeed())
+
+			updated := &gameserverv1alpha1.Server{}
+			if err := k8sClient.Get(context.Background(), types.NamespacedName{Name: serverName, Namespace: ns}, updated); err == nil {
+				Expect(updated.Finalizers).NotTo(ContainElement(ServerFinalizer))
 			}
 		})
 	})
@@ -527,7 +566,6 @@ var _ = Describe("Server Controller", func() {
 			Expect(reasons).To(ContainElement(string(utils.ReasonServerFinalizerRemoved)))
 		})
 	})
-
 
 	Context("Error paths", func() {
 		const serverName = "server-err-test"

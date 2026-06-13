@@ -240,6 +240,9 @@ func (r *FleetReconciler) handleDeletion(ctx context.Context, fleet *gameserverv
 		return err
 	}
 	for _, server := range servers.Items {
+		if server.DeletionTimestamp != nil {
+			continue
+		}
 		if err := r.Delete(ctx, &server); err != nil {
 			return err
 		}

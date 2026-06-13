@@ -1,6 +1,8 @@
 package builders
 
 import (
+	"os"
+
 	"github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -142,5 +144,19 @@ var _ = Describe("GetNewPod", func() {
 				Expect(env.Name).NotTo(Equal("SERVER_CAPACITY"))
 			}
 		}
+	})
+
+	It("omits ImagePullSecrets when IMAGE_PULL_SECRET_NAME is unset", func() {
+		Expect(os.Unsetenv("IMAGE_PULL_SECRET_NAME")).To(Succeed())
+		pod := GetNewPod(baseServer, "default")
+		Expect(pod.Spec.ImagePullSecrets).To(BeEmpty())
+	})
+
+	It("adds ImagePullSecrets when IMAGE_PULL_SECRET_NAME is set", func() {
+		Expect(os.Setenv("IMAGE_PULL_SECRET_NAME", "my-pull-secret")).To(Succeed())
+		DeferCleanup(os.Unsetenv, "IMAGE_PULL_SECRET_NAME")
+		pod := GetNewPod(baseServer, "default")
+		Expect(pod.Spec.ImagePullSecrets).To(HaveLen(1))
+		Expect(pod.Spec.ImagePullSecrets[0].Name).To(Equal("my-pull-secret"))
 	})
 })

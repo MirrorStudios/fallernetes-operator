@@ -91,9 +91,9 @@ func getPodSpec(server *v1alpha1.Server) *corev1.PodSpec {
 		}
 	}
 
-	pod.ImagePullSecrets = append(pod.ImagePullSecrets, corev1.LocalObjectReference{
-		Name: os.Getenv("IMAGE_PULL_SECRET_NAME"),
-	})
+	if name := os.Getenv("IMAGE_PULL_SECRET_NAME"); name != "" {
+		pod.ImagePullSecrets = append(pod.ImagePullSecrets, corev1.LocalObjectReference{Name: name})
+	}
 
 	return pod
 }

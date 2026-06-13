@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -44,6 +45,9 @@ const metricsServiceName = "operator-controller-manager-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
 const metricsRoleBindingName = "operator-metrics-binding"
+
+// testNamespace is the namespace used for Fleet test workloads (distinct from the operator namespace).
+const testNamespace = "default"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
@@ -77,8 +81,28 @@ var _ = Describe("Manager", Ordered, func() {
 	// After all tests have been executed, clean up by undeploying the controller, uninstalling CRDs,
 	// and deleting the namespace.
 	AfterAll(func() {
+		// In Ginkgo v2, DeferCleanup registered in the last It of an Ordered container runs after
+		// AfterAll, not before it. Explicitly delete all remaining fleets here so AfterAll does not
+		// depend on DeferCleanup having already submitted the delete requests.
+		By("deleting any remaining fleets in default namespace")
+		cmd := exec.Command("kubectl", "delete", "fleet", "--all", "-n", "default",
+			"--wait=false", "--ignore-not-found=true")
+		_, _ = utils.Run(cmd)
+
+		// Wait for fleet resources to be fully deleted (finalizers removed) before undeploying.
+		// Undeploying while finalizers are pending blocks kubectl delete (waiting on webhook/namespace).
+		By("waiting for all fleets in default namespace to be fully deleted")
+		Eventually(func(g Gomega) {
+			cmd := exec.Command("kubectl", "get", "fleets",
+				"-n", "default",
+				"-o", "jsonpath={.items[*].metadata.name}")
+			output, err := utils.Run(cmd)
+			g.Expect(err).NotTo(HaveOccurred())
+			g.Expect(strings.TrimSpace(output)).To(BeEmpty())
+		}, 3*time.Minute, 5*time.Second).Should(Succeed())
+
 		By("cleaning up the curl pod for metrics")
-		cmd := exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
+		cmd = exec.Command("kubectl", "delete", "pod", "curl-metrics", "-n", namespace)
 		_, _ = utils.Run(cmd)
 
 		By("undeploying the controller-manager")
@@ -344,15 +368,87 @@ var _ = Describe("Manager", Ordered, func() {
 
 		// +kubebuilder:scaffold:e2e-webhooks-checks
 
-		// TODO: Customize the e2e test suite with scenarios specific to your project.
-		// Consider applying sample/CR(s) and check their status and/or verifying
-		// the reconciliation by using the metrics, i.e.:
-		// metricsOutput, err := getMetricsOutput()
-		// Expect(err).NotTo(HaveOccurred(), "Failed to retrieve logs from curl pod")
-		// Expect(metricsOutput).To(ContainSubstring(
-		//    fmt.Sprintf(`controller_runtime_reconcile_total{controller="%s",result="success"} 1`,
-		//    strings.ToLower(<Kind>),
-		// ))
+		It("should create Running pods for a Fleet", func() {
+			const testFleetName = "e2e-fleet-test"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("applying a sample Fleet manifest")
+			tmpFile := writeFleetManifest(testFleetName, testNamespace, 2)
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply Fleet manifest")
+
+			By("waiting for 2 pods to appear with the fleet label")
+			Eventually(waitForFleetPods(testFleetName, testNamespace, 2), 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("verifying all pods reach Running phase")
+			Eventually(waitForFleetPodsRunning(testFleetName, testNamespace), 3*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
+		It("should remove all Servers and Pods when a Fleet is deleted", func() {
+			const testFleetName = "e2e-fleet-del-test"
+
+			By("creating a Fleet with 2 replicas")
+			tmpFile := writeFleetManifest(testFleetName, testNamespace, 2)
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred(), "Failed to apply Fleet manifest")
+
+			By("waiting for 2 pods to be Running")
+			Eventually(waitForFleetPods(testFleetName, testNamespace, 2), 2*time.Minute, 5*time.Second).Should(Succeed())
+			Eventually(waitForFleetPodsRunning(testFleetName, testNamespace), 3*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("deleting the Fleet")
+			cmd = exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNamespace, "--wait=false")
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for all Pods with the fleet label to disappear")
+			Eventually(waitForFleetPods(testFleetName, testNamespace, 0), 3*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("waiting for all Server CRs with the fleet label to disappear")
+			Eventually(waitForFleetServers(testFleetName, testNamespace, 0), 3*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
+		It("should remove excess pods when a Fleet is scaled down", func() {
+			const testFleetName = "e2e-fleet-scaledown-test"
+
+			DeferCleanup(func() {
+				cmd := exec.Command("kubectl", "delete", "fleet", testFleetName, "-n", testNamespace,
+					"--wait=false", "--ignore-not-found=true")
+				_, _ = utils.Run(cmd)
+			})
+
+			By("applying a Fleet with 3 replicas")
+			tmpFile := writeFleetManifest(testFleetName, testNamespace, 3)
+			cmd := exec.Command("kubectl", "apply", "-f", tmpFile)
+			_, err := utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting for 3 pods to appear")
+			Eventually(waitForFleetPods(testFleetName, testNamespace, 3), 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("patching fleet replicas down to 1")
+			cmd = exec.Command("kubectl", "patch", "fleet", testFleetName,
+				"-n", testNamespace,
+				"--type=merge",
+				"-p", `{"spec":{"scaling":{"replicas":1}}}`,
+			)
+			_, err = utils.Run(cmd)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("waiting until only 1 pod remains")
+			Eventually(waitForFleetPods(testFleetName, testNamespace, 1), 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("waiting until only 1 Server CR remains")
+			Eventually(waitForFleetServers(testFleetName, testNamespace, 1), 2*time.Minute, 5*time.Second).Should(Succeed())
+		})
+
 	})
 })
 
@@ -410,4 +506,78 @@ type tokenRequest struct {
 	Status struct {
 		Token string `json:"token"`
 	} `json:"status"`
+}
+
+// waitForFleetPods returns a Gomega assertion function that passes when exactly count pods
+// with the given fleet label exist. Use count=0 to assert all pods are gone.
+func waitForFleetPods(fleetName, ns string, count int) func(Gomega) {
+	return func(g Gomega) {
+		cmd := exec.Command("kubectl", "get", "pods",
+			"-l", fmt.Sprintf("fleet=%s", fleetName),
+			"-n", ns,
+			"-o", "jsonpath={.items[*].metadata.name}")
+		output, err := utils.Run(cmd)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(strings.Fields(output)).To(HaveLen(count))
+	}
+}
+
+// waitForFleetServers returns a Gomega assertion function that passes when exactly count Server CRs
+// with the given fleet label exist. Use count=0 to assert all servers are gone.
+func waitForFleetServers(fleetName, ns string, count int) func(Gomega) {
+	return func(g Gomega) {
+		cmd := exec.Command("kubectl", "get", "servers",
+			"-l", fmt.Sprintf("fleet=%s", fleetName),
+			"-n", ns,
+			"-o", "jsonpath={.items[*].metadata.name}")
+		output, err := utils.Run(cmd)
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(strings.Fields(output)).To(HaveLen(count))
+	}
+}
+
+// waitForFleetPodsRunning returns a Gomega assertion function that passes when every pod
+// with the given fleet label is in the Running phase.
+func waitForFleetPodsRunning(fleetName, ns string) func(Gomega) {
+	return func(g Gomega) {
+		cmd := exec.Command("kubectl", "get", "pods",
+			"-l", fmt.Sprintf("fleet=%s", fleetName),
+			"-n", ns,
+			"-o", "jsonpath={.items[*].status.phase}")
+		output, err := utils.Run(cmd)
+		g.Expect(err).NotTo(HaveOccurred())
+		for _, phase := range strings.Fields(output) {
+			g.Expect(phase).To(Equal("Running"))
+		}
+	}
+}
+
+// writeFleetManifest writes a Fleet manifest to a temp file and returns its path.
+// No force-delete timeout is set: deletion must be approved via the sidecar protocol so that
+// tests catch regressions in the sidecar communication path.
+func writeFleetManifest(name, ns string, replicas int) string {
+	filename := name + ".yaml"
+	yaml := fmt.Sprintf(`apiVersion: gameserver.falloria.com/v1alpha1
+kind: Fleet
+metadata:
+  name: %s
+  namespace: %s
+spec:
+  scaling:
+    replicas: %d
+    agePriority: oldest_first
+    prioritizeAllowed: false
+  spec:
+    sidecar:
+      port: 8080
+      image: %s
+    pod:
+      containers:
+      - name: game-server
+        image: busybox:latest
+        command: ["sh", "-c", "while true; do if wget -qO- http://localhost:8080/shutdown 2>/dev/null | grep -q 'true'; then wget -qO- --post-data='{\"allowed\":true}' http://localhost:8080/allow_delete 2>/dev/null; exit 0; fi; sleep 2; done"]
+`, name, ns, replicas, sidecarImage)
+	path := filepath.Join(os.TempDir(), filename)
+	Expect(os.WriteFile(path, []byte(yaml), 0644)).To(Succeed())
+	return path
 }
