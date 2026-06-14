@@ -76,3 +76,32 @@ func TestDeleteGame_KubeError(t *testing.T) {
 	require.NoError(t, err)
 	assert.IsType(t, gen.DeleteGame500JSONResponse{}, resp)
 }
+
+func TestPatchGameReplicas_Success(t *testing.T) {
+	fake := &FakeGamePort{}
+	svc := newTestService(&FakeServerPort{}, &FakeFleetPort{}, fake, &FakeScalerPort{}, &FakePodPort{})
+
+	replicas := int32(4)
+	resp, err := svc.PatchGameReplicas(context.Background(), gen.PatchGameReplicasRequestObject{
+		Body: &gen.PatchReplicasRequest{Name: "test-game", Namespace: "default", Replicas: replicas},
+	})
+
+	require.NoError(t, err)
+	assert.IsType(t, gen.PatchGameReplicas200Response{}, resp)
+	assert.True(t, fake.PatchGameReplicasCalled)
+	assert.Equal(t, "test-game", fake.PatchGameReplicasName)
+	assert.Equal(t, int32(4), fake.PatchGameReplicasReplicas)
+}
+
+func TestPatchGameReplicas_KubeError(t *testing.T) {
+	fake := &FakeGamePort{PatchGameReplicasErr: errors.New("not found")}
+	svc := newTestService(&FakeServerPort{}, &FakeFleetPort{}, fake, &FakeScalerPort{}, &FakePodPort{})
+
+	replicas := int32(4)
+	resp, err := svc.PatchGameReplicas(context.Background(), gen.PatchGameReplicasRequestObject{
+		Body: &gen.PatchReplicasRequest{Name: "test-game", Namespace: "default", Replicas: replicas},
+	})
+
+	require.NoError(t, err)
+	assert.IsType(t, gen.PatchGameReplicas500JSONResponse{}, resp)
+}

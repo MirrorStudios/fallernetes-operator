@@ -27,3 +27,10 @@ func (s *OperatorService) DeleteFleet(ctx context.Context, req gen.DeleteFleetRe
 	}
 	return gen.DeleteFleet204Response{}, nil
 }
+
+func (s *OperatorService) PatchFleetReplicas(ctx context.Context, req gen.PatchFleetReplicasRequestObject) (gen.PatchFleetReplicasResponseObject, error) {
+	if err := s.fleet.PatchFleetReplicas(ctx, req.Body.Name, req.Body.Namespace, req.Body.Replicas); err != nil {
+		return gen.PatchFleetReplicas500JSONResponse{InternalErrorJSONResponse: gen.InternalErrorJSONResponse{Message: "error patching fleet replicas", Error: strPtr(err.Error())}}, nil
+	}
+	return gen.PatchFleetReplicas200Response{}, nil
+}
