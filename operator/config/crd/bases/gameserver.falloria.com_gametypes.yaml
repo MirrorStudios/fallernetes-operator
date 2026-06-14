@@ -65,6 +65,12 @@ spec:
                         - oldest_first
                         - newest_first
                         type: string
+                      maxReplicas:
+                        format: int32
+                        type: integer
+                      minReplicas:
+                        format: int32
+                        type: integer
                       prioritizeAllowed:
                         default: true
                         description: If we should first delete the servers where deletion

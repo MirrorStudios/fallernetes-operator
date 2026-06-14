@@ -75,10 +75,10 @@ var _ = Describe("GameTypeAutoscaler Controller", func() {
 		}
 	})
 
-	It("requeues without error when the referenced GameType does not exist", func() {
+	It("requeues after 30 seconds without error when the referenced GameType does not exist", func() {
 		result, err := reconcileAutoscaler(FakeWebhook{})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(result.Requeue).To(BeTrue())
+		Expect(result.RequeueAfter).To(Equal(30 * time.Second))
 	})
 
 	Context("with an existing GameType", func() {
@@ -160,6 +160,72 @@ var _ = Describe("GameTypeAutoscaler Controller", func() {
 			})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to update gametype"))
+		})
+	})
+
+	Context("Clamping", func() {
+		ptr32 := func(v int32) *int32 { return &v }
+
+		makeGameTypeWithBounds := func(name, ns string, replicas int32, min, max *int32) *gameserverv1alpha1.GameType {
+			gt := makeGameType(name, ns, replicas)
+			gt.Spec.FleetSpec.Scaling.MinReplicas = min
+			gt.Spec.FleetSpec.Scaling.MaxReplicas = max
+			return gt
+		}
+
+		It("clamps up to minReplicas when the webhook returns a value below min", func() {
+			Expect(k8sClient.Create(context.Background(), makeGameTypeWithBounds(gametypeName, ns, 3, ptr32(5), nil))).To(Succeed())
+
+			_, err := reconcileAutoscaler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 2}})
+			Expect(err).NotTo(HaveOccurred())
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gametypeName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Spec.FleetSpec.Scaling.Replicas).To(Equal(int32(5)))
+		})
+
+		It("clamps down to maxReplicas when the webhook returns a value above max", func() {
+			Expect(k8sClient.Create(context.Background(), makeGameTypeWithBounds(gametypeName, ns, 3, nil, ptr32(10)))).To(Succeed())
+
+			_, err := reconcileAutoscaler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 15}})
+			Expect(err).NotTo(HaveOccurred())
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gametypeName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Spec.FleetSpec.Scaling.Replicas).To(Equal(int32(10)))
+		})
+
+		It("applies the webhook value as-is when neither bound is set", func() {
+			Expect(k8sClient.Create(context.Background(), makeGameType(gametypeName, ns, 3))).To(Succeed())
+
+			_, err := reconcileAutoscaler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 7}})
+			Expect(err).NotTo(HaveOccurred())
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gametypeName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Spec.FleetSpec.Scaling.Replicas).To(Equal(int32(7)))
+		})
+
+		It("only enforces minReplicas when maxReplicas is not set — values above min pass through", func() {
+			Expect(k8sClient.Create(context.Background(), makeGameTypeWithBounds(gametypeName, ns, 3, ptr32(5), nil))).To(Succeed())
+
+			_, err := reconcileAutoscaler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 20}})
+			Expect(err).NotTo(HaveOccurred())
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gametypeName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Spec.FleetSpec.Scaling.Replicas).To(Equal(int32(20)))
+		})
+
+		It("only enforces maxReplicas when minReplicas is not set — values below max pass through", func() {
+			Expect(k8sClient.Create(context.Background(), makeGameTypeWithBounds(gametypeName, ns, 3, nil, ptr32(8)))).To(Succeed())
+
+			_, err := reconcileAutoscaler(FakeWebhook{Response: autoscaler.AutoscaleResponse{Scale: true, DesiredReplicas: 3}})
+			Expect(err).NotTo(HaveOccurred())
+
+			gt := &gameserverv1alpha1.GameType{}
+			Expect(k8sClient.Get(context.Background(), types.NamespacedName{Name: gametypeName, Namespace: ns}, gt)).To(Succeed())
+			Expect(gt.Spec.FleetSpec.Scaling.Replicas).To(Equal(int32(3)))
 		})
 	})
 

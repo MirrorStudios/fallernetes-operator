@@ -92,6 +92,36 @@ var _ = Describe("Fleet Webhook", func() {
 			_, err := validator.ValidateUpdate(ctx, oldObj, obj)
 			Expect(err).To(HaveOccurred())
 		})
+
+		It("rejects a Fleet where minReplicas exceeds maxReplicas", func() {
+			minReplicas, maxReplicas := int32(10), int32(5)
+			obj.Spec.Scaling.Replicas = 1
+			obj.Spec.Scaling.AgePriority = gameserverv1alpha1.OldestFirst
+			obj.Spec.Scaling.MinReplicas = &minReplicas
+			obj.Spec.Scaling.MaxReplicas = &maxReplicas
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("admits a Fleet where minReplicas equals maxReplicas", func() {
+			bound := int32(5)
+			obj.Spec.Scaling.Replicas = 1
+			obj.Spec.Scaling.AgePriority = gameserverv1alpha1.OldestFirst
+			obj.Spec.Scaling.MinReplicas = &bound
+			obj.Spec.Scaling.MaxReplicas = &bound
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("admits a Fleet where minReplicas is less than maxReplicas", func() {
+			minReplicas, maxReplicas := int32(2), int32(10)
+			obj.Spec.Scaling.Replicas = 1
+			obj.Spec.Scaling.AgePriority = gameserverv1alpha1.OldestFirst
+			obj.Spec.Scaling.MinReplicas = &minReplicas
+			obj.Spec.Scaling.MaxReplicas = &maxReplicas
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 })
