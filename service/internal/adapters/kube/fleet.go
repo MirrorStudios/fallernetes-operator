@@ -30,12 +30,18 @@ func (k *Adapter) DeleteFleet(ctx context.Context, name, namespace string, force
 	return nil
 }
 
-func (k *Adapter) PatchFleetReplicas(ctx context.Context, name, namespace string, replicas int32) error {
+func (k *Adapter) PatchFleetReplicas(ctx context.Context, name, namespace string, replicas int32, minReplicas, maxReplicas *int32) error {
 	fleet := &v1alpha1.Fleet{}
 	if err := k.client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, fleet); err != nil {
 		return err
 	}
 	fleet.Spec.Scaling.Replicas = replicas
+	if minReplicas != nil {
+		fleet.Spec.Scaling.MinReplicas = minReplicas
+	}
+	if maxReplicas != nil {
+		fleet.Spec.Scaling.MaxReplicas = maxReplicas
+	}
 	return k.client.Update(ctx, fleet)
 }
 

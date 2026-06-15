@@ -19,11 +19,13 @@ type FakeFleetPort struct {
 	DeleteFleetForce     bool
 	DeleteFleetErr       error
 
-	PatchFleetReplicasCalled    bool
-	PatchFleetReplicasName      string
-	PatchFleetReplicasNamespace string
-	PatchFleetReplicasReplicas  int32
-	PatchFleetReplicasErr       error
+	PatchFleetReplicasCalled      bool
+	PatchFleetReplicasName        string
+	PatchFleetReplicasNamespace   string
+	PatchFleetReplicasReplicas    int32
+	PatchFleetReplicasMinReplicas *int32
+	PatchFleetReplicasMaxReplicas *int32
+	PatchFleetReplicasErr         error
 }
 
 func (f *FakeFleetPort) CreateFleet(_ context.Context, name, namespace string, _ map[string]string, spec gen.FleetSpec) error {
@@ -42,10 +44,12 @@ func (f *FakeFleetPort) DeleteFleet(_ context.Context, name, namespace string, f
 	return f.DeleteFleetErr
 }
 
-func (f *FakeFleetPort) PatchFleetReplicas(_ context.Context, name, namespace string, replicas int32) error {
+func (f *FakeFleetPort) PatchFleetReplicas(_ context.Context, name, namespace string, replicas int32, minReplicas, maxReplicas *int32) error {
 	f.PatchFleetReplicasCalled = true
 	f.PatchFleetReplicasName = name
 	f.PatchFleetReplicasNamespace = namespace
 	f.PatchFleetReplicasReplicas = replicas
+	f.PatchFleetReplicasMinReplicas = minReplicas
+	f.PatchFleetReplicasMaxReplicas = maxReplicas
 	return f.PatchFleetReplicasErr
 }

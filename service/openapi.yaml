@@ -514,6 +514,12 @@ components:
         replicas:
           type: integer
           format: int32
+        minReplicas:
+          type: integer
+          format: int32
+        maxReplicas:
+          type: integer
+          format: int32
 
     DeleteObjectRequest:
       type: object

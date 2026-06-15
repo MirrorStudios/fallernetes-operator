@@ -201,9 +201,11 @@ type GameTypeSpec struct {
 
 // PatchReplicasRequest defines model for PatchReplicasRequest.
 type PatchReplicasRequest struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
-	Replicas  int32  `json:"replicas"`
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	Name        string `json:"name"`
+	Namespace   string `json:"namespace"`
+	Replicas    int32  `json:"replicas"`
 }
 
 // RemovePodLabelRequest defines model for RemovePodLabelRequest.
