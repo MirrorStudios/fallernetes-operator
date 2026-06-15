@@ -115,6 +115,24 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /fleet/replicas:
+    patch:
+      operationId: PatchFleetReplicas
+      summary: Update replica count on an existing Fleet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchReplicasRequest'
+      responses:
+        '200':
+          description: Replicas updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /game:
     post:
       operationId: CreateGame
@@ -148,6 +166,24 @@ paths:
       responses:
         '204':
           description: GameType deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /game/replicas:
+    patch:
+      operationId: PatchGameReplicas
+      summary: Update replica count on an existing GameType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchReplicasRequest'
+      responses:
+        '200':
+          description: Replicas updated
         '400':
           $ref: '#/components/responses/BadRequest'
         '500':
@@ -466,6 +502,24 @@ components:
             type: string
         spec:
           $ref: '#/components/schemas/GameAutoscalerSpec'
+
+    PatchReplicasRequest:
+      type: object
+      required: [ name, namespace, replicas ]
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        replicas:
+          type: integer
+          format: int32
+        minReplicas:
+          type: integer
+          format: int32
+        maxReplicas:
+          type: integer
+          format: int32
 
     DeleteObjectRequest:
       type: object

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/equality"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -94,6 +95,9 @@ func (v *ServerCustomValidator) ValidateCreate(_ context.Context, server *gamese
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Server.
 func (v *ServerCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj *gameserverv1alpha1.Server) (admission.Warnings, error) {
 	serverlog.Info("Validation for Server upon update", "name", newObj.GetName())
+	if !equality.Semantic.DeepEqual(oldObj.Spec.Pod, newObj.Spec.Pod) {
+		return nil, fmt.Errorf("spec.pod is immutable: the pod spec cannot be changed after creation")
+	}
 	return nil, validateServer(newObj)
 }
 

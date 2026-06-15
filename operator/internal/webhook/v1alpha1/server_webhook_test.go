@@ -19,9 +19,9 @@ package v1alpha1
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 
 	gameserverv1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
-	// TODO (user): Add any additional imports if needed
 )
 
 var _ = Describe("Server Webhook", func() {
@@ -99,6 +99,29 @@ var _ = Describe("Server Webhook", func() {
 			port := 8080
 			obj.Spec.SidecarSettings = &gameserverv1alpha1.SidecarSettings{Port: &port}
 			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("rejects an update that changes the pod spec", func() {
+			oldObj.Spec.Pod = corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "game", Image: "game-server:v1"}},
+			}
+			obj.Spec.Pod = corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "game", Image: "game-server:v2"}},
+			}
+			_, err := validator.ValidateUpdate(ctx, oldObj, obj)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("immutable"))
+		})
+
+		It("admits an update that leaves the pod spec unchanged", func() {
+			pod := corev1.PodSpec{
+				Containers: []corev1.Container{{Name: "game", Image: "game-server:v1"}},
+			}
+			oldObj.Spec.Pod = pod
+			obj.Spec.Pod = pod
+			obj.Spec.AllowForceDelete = true
+			_, err := validator.ValidateUpdate(ctx, oldObj, obj)
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

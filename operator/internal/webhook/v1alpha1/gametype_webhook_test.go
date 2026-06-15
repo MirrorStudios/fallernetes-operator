@@ -61,26 +61,37 @@ var _ = Describe("GameType Webhook", func() {
 	})
 
 	Context("When creating or updating GameType under Validating Webhook", func() {
-		// TODO (user): Add logic for validating webhooks
-		// Example:
-		// It("Should deny creation if a required field is missing", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = ""
-		//     Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
-		// })
-		//
-		// It("Should admit creation if all required fields are present", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = "valid_value"
-		//     Expect(validator.ValidateCreate(ctx, obj)).To(BeNil())
-		// })
-		//
-		// It("Should validate updates correctly", func() {
-		//     By("simulating a valid update scenario")
-		//     oldObj.SomeRequiredField = "updated_value"
-		//     obj.SomeRequiredField = "updated_value"
-		//     Expect(validator.ValidateUpdate(ctx, oldObj, obj)).To(BeNil())
-		// })
+		It("rejects a GameType where minReplicas exceeds maxReplicas", func() {
+			minReplicas, maxReplicas := int32(10), int32(5)
+			obj.Spec.FleetSpec.Scaling.MinReplicas = &minReplicas
+			obj.Spec.FleetSpec.Scaling.MaxReplicas = &maxReplicas
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("admits a GameType where minReplicas equals maxReplicas", func() {
+			bound := int32(5)
+			obj.Spec.FleetSpec.Scaling.MinReplicas = &bound
+			obj.Spec.FleetSpec.Scaling.MaxReplicas = &bound
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("admits a GameType where minReplicas is less than maxReplicas", func() {
+			minReplicas, maxReplicas := int32(2), int32(10)
+			obj.Spec.FleetSpec.Scaling.MinReplicas = &minReplicas
+			obj.Spec.FleetSpec.Scaling.MaxReplicas = &maxReplicas
+			_, err := validator.ValidateCreate(ctx, obj)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("rejects an update that sets minReplicas above maxReplicas", func() {
+			minReplicas, maxReplicas := int32(20), int32(10)
+			obj.Spec.FleetSpec.Scaling.MinReplicas = &minReplicas
+			obj.Spec.FleetSpec.Scaling.MaxReplicas = &maxReplicas
+			_, err := validator.ValidateUpdate(ctx, oldObj, obj)
+			Expect(err).To(HaveOccurred())
+		})
 	})
 
 })

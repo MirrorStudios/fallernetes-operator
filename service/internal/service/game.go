@@ -27,3 +27,10 @@ func (s *OperatorService) DeleteGame(ctx context.Context, req gen.DeleteGameRequ
 	}
 	return gen.DeleteGame204Response{}, nil
 }
+
+func (s *OperatorService) PatchGameReplicas(ctx context.Context, req gen.PatchGameReplicasRequestObject) (gen.PatchGameReplicasResponseObject, error) {
+	if err := s.game.PatchGameReplicas(ctx, req.Body.Name, req.Body.Namespace, req.Body.Replicas); err != nil {
+		return gen.PatchGameReplicas500JSONResponse{InternalErrorJSONResponse: gen.InternalErrorJSONResponse{Message: "error patching game replicas", Error: strPtr(err.Error())}}, nil
+	}
+	return gen.PatchGameReplicas200Response{}, nil
+}

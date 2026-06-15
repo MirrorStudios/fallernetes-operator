@@ -17,8 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // FleetSpec defines the desired state of Fleet
@@ -28,12 +28,6 @@ type FleetSpec struct {
 }
 
 type Priority string
-
-var validPriorities = map[Priority]struct{}{
-	OldestFirst: {},
-	NewestFirst: {},
-	// Add new priorities here as needed
-}
 
 const (
 	OldestFirst Priority = "oldest_first"
@@ -48,6 +42,12 @@ type FleetScaling struct {
 	// +kubebuilder:default=true
 	// If we should first delete the servers where deletion is allowed
 	PrioritizeAllowed bool `json:"prioritizeAllowed"`
+
+	// +kubebuilder:validation:Optional
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	// +kubebuilder:validation:Optional
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+
 	// Whether we should first delete the oldest or newest
 	// +kubebuilder:default=oldest_first
 	// +kubebuilder:validation:Optional

@@ -199,6 +199,15 @@ type GameTypeSpec struct {
 	FleetSpec FleetSpec `json:"fleetSpec"`
 }
 
+// PatchReplicasRequest defines model for PatchReplicasRequest.
+type PatchReplicasRequest struct {
+	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
+	MinReplicas *int32 `json:"minReplicas,omitempty"`
+	Name        string `json:"name"`
+	Namespace   string `json:"namespace"`
+	Replicas    int32  `json:"replicas"`
+}
+
 // RemovePodLabelRequest defines model for RemovePodLabelRequest.
 type RemovePodLabelRequest struct {
 	Key        string `json:"key"`
@@ -268,11 +277,17 @@ type DeleteFleetJSONRequestBody = DeleteObjectRequest
 // CreateFleetJSONRequestBody defines body for CreateFleet for application/json ContentType.
 type CreateFleetJSONRequestBody = CreateFleetRequest
 
+// PatchFleetReplicasJSONRequestBody defines body for PatchFleetReplicas for application/json ContentType.
+type PatchFleetReplicasJSONRequestBody = PatchReplicasRequest
+
 // DeleteGameJSONRequestBody defines body for DeleteGame for application/json ContentType.
 type DeleteGameJSONRequestBody = DeleteObjectRequest
 
 // CreateGameJSONRequestBody defines body for CreateGame for application/json ContentType.
 type CreateGameJSONRequestBody = CreateGameRequest
+
+// PatchGameReplicasJSONRequestBody defines body for PatchGameReplicas for application/json ContentType.
+type PatchGameReplicasJSONRequestBody = PatchReplicasRequest
 
 // DeleteScalerJSONRequestBody defines body for DeleteScaler for application/json ContentType.
 type DeleteScalerJSONRequestBody = DeleteObjectRequest
@@ -300,12 +315,18 @@ type ServerInterface interface {
 	// Create a Fleet CRD
 	// (POST /fleet)
 	CreateFleet(w http.ResponseWriter, r *http.Request)
+	// Update replica count on an existing Fleet
+	// (PATCH /fleet/replicas)
+	PatchFleetReplicas(w http.ResponseWriter, r *http.Request)
 	// Delete a GameType CRD
 	// (DELETE /game)
 	DeleteGame(w http.ResponseWriter, r *http.Request)
 	// Create a GameType CRD
 	// (POST /game)
 	CreateGame(w http.ResponseWriter, r *http.Request)
+	// Update replica count on an existing GameType
+	// (PATCH /game/replicas)
+	PatchGameReplicas(w http.ResponseWriter, r *http.Request)
 	// Health check
 	// (GET /health)
 	Health(w http.ResponseWriter, r *http.Request)
@@ -366,6 +387,20 @@ func (siw *ServerInterfaceWrapper) CreateFleet(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// PatchFleetReplicas operation middleware
+func (siw *ServerInterfaceWrapper) PatchFleetReplicas(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchFleetReplicas(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // DeleteGame operation middleware
 func (siw *ServerInterfaceWrapper) DeleteGame(w http.ResponseWriter, r *http.Request) {
 
@@ -385,6 +420,20 @@ func (siw *ServerInterfaceWrapper) CreateGame(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateGame(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchGameReplicas operation middleware
+func (siw *ServerInterfaceWrapper) PatchGameReplicas(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchGameReplicas(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -614,8 +663,10 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/fleet", wrapper.DeleteFleet)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/fleet", wrapper.CreateFleet)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/fleet/replicas", wrapper.PatchFleetReplicas)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/game", wrapper.DeleteGame)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/game", wrapper.CreateGame)
+	m.HandleFunc(http.MethodPatch+" "+options.BaseURL+"/game/replicas", wrapper.PatchGameReplicas)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/health", wrapper.Health)
 	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/scaler", wrapper.DeleteScaler)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/scaler", wrapper.CreateScaler)
@@ -725,6 +776,50 @@ func (response CreateFleet500JSONResponse) VisitCreateFleetResponse(w http.Respo
 	return err
 }
 
+type PatchFleetReplicasRequestObject struct {
+	Body *PatchFleetReplicasJSONRequestBody
+}
+
+type PatchFleetReplicasResponseObject interface {
+	VisitPatchFleetReplicasResponse(w http.ResponseWriter) error
+}
+
+type PatchFleetReplicas200Response struct {
+}
+
+func (response PatchFleetReplicas200Response) VisitPatchFleetReplicasResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type PatchFleetReplicas400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PatchFleetReplicas400JSONResponse) VisitPatchFleetReplicasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchFleetReplicas500JSONResponse struct{ InternalErrorJSONResponse }
+
+func (response PatchFleetReplicas500JSONResponse) VisitPatchFleetReplicasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type DeleteGameRequestObject struct {
 	Body *DeleteGameJSONRequestBody
 }
@@ -808,6 +903,50 @@ func (response CreateGame400JSONResponse) VisitCreateGameResponse(w http.Respons
 type CreateGame500JSONResponse struct{ InternalErrorJSONResponse }
 
 func (response CreateGame500JSONResponse) VisitCreateGameResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGameReplicasRequestObject struct {
+	Body *PatchGameReplicasJSONRequestBody
+}
+
+type PatchGameReplicasResponseObject interface {
+	VisitPatchGameReplicasResponse(w http.ResponseWriter) error
+}
+
+type PatchGameReplicas200Response struct {
+}
+
+func (response PatchGameReplicas200Response) VisitPatchGameReplicasResponse(w http.ResponseWriter) error {
+	w.WriteHeader(200)
+	return nil
+}
+
+type PatchGameReplicas400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PatchGameReplicas400JSONResponse) VisitPatchGameReplicasResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type PatchGameReplicas500JSONResponse struct{ InternalErrorJSONResponse }
+
+func (response PatchGameReplicas500JSONResponse) VisitPatchGameReplicasResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1118,12 +1257,18 @@ type StrictServerInterface interface {
 	// Create a Fleet CRD
 	// (POST /fleet)
 	CreateFleet(ctx context.Context, request CreateFleetRequestObject) (CreateFleetResponseObject, error)
+	// Update replica count on an existing Fleet
+	// (PATCH /fleet/replicas)
+	PatchFleetReplicas(ctx context.Context, request PatchFleetReplicasRequestObject) (PatchFleetReplicasResponseObject, error)
 	// Delete a GameType CRD
 	// (DELETE /game)
 	DeleteGame(ctx context.Context, request DeleteGameRequestObject) (DeleteGameResponseObject, error)
 	// Create a GameType CRD
 	// (POST /game)
 	CreateGame(ctx context.Context, request CreateGameRequestObject) (CreateGameResponseObject, error)
+	// Update replica count on an existing GameType
+	// (PATCH /game/replicas)
+	PatchGameReplicas(ctx context.Context, request PatchGameReplicasRequestObject) (PatchGameReplicasResponseObject, error)
 	// Health check
 	// (GET /health)
 	Health(ctx context.Context, request HealthRequestObject) (HealthResponseObject, error)
@@ -1238,6 +1383,37 @@ func (sh *strictHandler) CreateFleet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// PatchFleetReplicas operation middleware
+func (sh *strictHandler) PatchFleetReplicas(w http.ResponseWriter, r *http.Request) {
+	var request PatchFleetReplicasRequestObject
+
+	var body PatchFleetReplicasJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchFleetReplicas(ctx, request.(PatchFleetReplicasRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchFleetReplicas")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchFleetReplicasResponseObject); ok {
+		if err := validResponse.VisitPatchFleetReplicasResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // DeleteGame operation middleware
 func (sh *strictHandler) DeleteGame(w http.ResponseWriter, r *http.Request) {
 	var request DeleteGameRequestObject
@@ -1293,6 +1469,37 @@ func (sh *strictHandler) CreateGame(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateGameResponseObject); ok {
 		if err := validResponse.VisitCreateGameResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchGameReplicas operation middleware
+func (sh *strictHandler) PatchGameReplicas(w http.ResponseWriter, r *http.Request) {
+	var request PatchGameReplicasRequestObject
+
+	var body PatchGameReplicasJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchGameReplicas(ctx, request.(PatchGameReplicasRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchGameReplicas")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchGameReplicasResponseObject); ok {
+		if err := validResponse.VisitPatchGameReplicasResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

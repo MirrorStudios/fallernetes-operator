@@ -5,6 +5,7 @@ import (
 
 	v1alpha1 "github.com/MirrorStudios/fallernetes-operator/operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/MirrorStudios/fallernetes-operator/service/internal/gen"
@@ -27,6 +28,21 @@ func (k *Adapter) DeleteFleet(ctx context.Context, name, namespace string, force
 		return k.forceDeleteFleet(ctx, name, namespace)
 	}
 	return nil
+}
+
+func (k *Adapter) PatchFleetReplicas(ctx context.Context, name, namespace string, replicas int32, minReplicas, maxReplicas *int32) error {
+	fleet := &v1alpha1.Fleet{}
+	if err := k.client.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, fleet); err != nil {
+		return err
+	}
+	fleet.Spec.Scaling.Replicas = replicas
+	if minReplicas != nil {
+		fleet.Spec.Scaling.MinReplicas = minReplicas
+	}
+	if maxReplicas != nil {
+		fleet.Spec.Scaling.MaxReplicas = maxReplicas
+	}
+	return k.client.Update(ctx, fleet)
 }
 
 func (k *Adapter) forceDeleteFleet(ctx context.Context, name, namespace string) error {

@@ -58,18 +58,9 @@ func (d *FleetCustomDefaulter) Default(_ context.Context, fleet *gameserverv1alp
 	return nil
 }
 
-// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-// NOTE: If you want to customise the 'path', use the flags '--defaulting-path' or '--validation-path'.
-// +kubebuilder:webhook:path=/validate-gameserver-falloria-com-v1alpha1-fleet,mutating=false,failurePolicy=fail,sideEffects=None,groups=gameserver.falloria.com,resources=fleets,verbs=create;update,versions=v1alpha1,name=vfleet-v1alpha1.kb.io,admissionReviewVersions=v1
-
 // FleetCustomValidator struct is responsible for validating the Fleet resource
 // when it is created, updated, or deleted.
-//
-// NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
-// as this struct is used only for temporary operations and does not need to be deeply copied.
-type FleetCustomValidator struct {
-	// TODO(user): Add more fields as needed for validation
-}
+type FleetCustomValidator struct{}
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
 func (v *FleetCustomValidator) ValidateCreate(_ context.Context, obj *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
@@ -78,9 +69,9 @@ func (v *FleetCustomValidator) ValidateCreate(_ context.Context, obj *gameserver
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Fleet.
-func (v *FleetCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
-	fleetlog.Info("Validation for Fleet upon update", "name", newObj.GetName())
-	return nil, validateFleet(newObj)
+func (v *FleetCustomValidator) ValidateUpdate(_ context.Context, _, newFleet *gameserverv1alpha1.Fleet) (admission.Warnings, error) {
+	fleetlog.Info("Validation for Fleet upon update", "name", newFleet.GetName())
+	return nil, validateFleet(newFleet)
 }
 
 func validateFleet(fleet *gameserverv1alpha1.Fleet) error {
@@ -93,6 +84,13 @@ func validateFleet(fleet *gameserverv1alpha1.Fleet) error {
 	}
 	if !validPriorities[fleet.Spec.Scaling.AgePriority] {
 		return fmt.Errorf("spec.scaling.agePriority must be one of oldest_first|newest_first, got %q", fleet.Spec.Scaling.AgePriority)
+	}
+	return validateFleetScaling(fleet.Spec.Scaling)
+}
+
+func validateFleetScaling(scaling gameserverv1alpha1.FleetScaling) error {
+	if scaling.MinReplicas != nil && scaling.MaxReplicas != nil && *scaling.MinReplicas > *scaling.MaxReplicas {
+		return fmt.Errorf("spec.scaling.minReplicas (%d) must not exceed maxReplicas (%d)", *scaling.MinReplicas, *scaling.MaxReplicas)
 	}
 	return nil
 }

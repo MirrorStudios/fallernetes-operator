@@ -74,3 +74,32 @@ func TestDeleteFleet_KubeError(t *testing.T) {
 	require.NoError(t, err)
 	assert.IsType(t, gen.DeleteFleet500JSONResponse{}, resp)
 }
+
+func TestPatchFleetReplicas_Success(t *testing.T) {
+	fake := &FakeFleetPort{}
+	svc := newTestService(&FakeServerPort{}, fake, &FakeGamePort{}, &FakeScalerPort{}, &FakePodPort{})
+
+	replicas := int32(5)
+	resp, err := svc.PatchFleetReplicas(context.Background(), gen.PatchFleetReplicasRequestObject{
+		Body: &gen.PatchReplicasRequest{Name: "test-fleet", Namespace: "default", Replicas: replicas},
+	})
+
+	require.NoError(t, err)
+	assert.IsType(t, gen.PatchFleetReplicas200Response{}, resp)
+	assert.True(t, fake.PatchFleetReplicasCalled)
+	assert.Equal(t, "test-fleet", fake.PatchFleetReplicasName)
+	assert.Equal(t, int32(5), fake.PatchFleetReplicasReplicas)
+}
+
+func TestPatchFleetReplicas_KubeError(t *testing.T) {
+	fake := &FakeFleetPort{PatchFleetReplicasErr: errors.New("not found")}
+	svc := newTestService(&FakeServerPort{}, fake, &FakeGamePort{}, &FakeScalerPort{}, &FakePodPort{})
+
+	replicas := int32(5)
+	resp, err := svc.PatchFleetReplicas(context.Background(), gen.PatchFleetReplicasRequestObject{
+		Body: &gen.PatchReplicasRequest{Name: "test-fleet", Namespace: "default", Replicas: replicas},
+	})
+
+	require.NoError(t, err)
+	assert.IsType(t, gen.PatchFleetReplicas500JSONResponse{}, resp)
+}

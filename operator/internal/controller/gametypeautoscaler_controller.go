@@ -53,7 +53,7 @@ func (r *GameTypeAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err := r.Get(ctx, req.NamespacedName, autoscalerObj); err != nil {
 		if client.IgnoreNotFound(err) != nil {
 			logger.Error(err, "Failed to get autoscaler resource")
-			return ctrl.Result{Requeue: true}, err
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, nil
 	}
@@ -62,9 +62,9 @@ func (r *GameTypeAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.R
 	if err := r.Get(ctx, types.NamespacedName{Name: autoscalerObj.Spec.GameTypeName, Namespace: autoscalerObj.Namespace}, gametype); err != nil {
 		r.emitEventf(autoscalerObj, corev1.EventTypeWarning, utils.ReasonGameTypeAutoscalerInvalidTarget, "Failed to find GameType %q", autoscalerObj.Spec.GameTypeName)
 		if client.IgnoreNotFound(err) != nil {
-			return ctrl.Result{Requeue: true}, err
+			return ctrl.Result{}, err
 		}
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	if autoscalerObj.Spec.AutoscalePolicy.Type != gameserverv1alpha1.Webhook {
@@ -89,7 +89,15 @@ func (r *GameTypeAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.R
 		return ctrl.Result{RequeueAfter: autoscalerObj.Spec.Sync.Time.Duration}, nil
 	}
 
-	gametype.Spec.FleetSpec.Scaling.Replicas = int32(result.DesiredReplicas)
+	desired := int32(result.DesiredReplicas)
+	scaling := gametype.Spec.FleetSpec.Scaling
+	if scaling.MinReplicas != nil && desired < *scaling.MinReplicas {
+		desired = *scaling.MinReplicas
+	}
+	if scaling.MaxReplicas != nil && desired > *scaling.MaxReplicas {
+		desired = *scaling.MaxReplicas
+	}
+	gametype.Spec.FleetSpec.Scaling.Replicas = desired
 	if err := r.Client.Update(ctx, gametype); err != nil {
 		r.emitEvent(autoscalerObj, corev1.EventTypeWarning, utils.ReasonGameTypeAutoscalerScale, "failed to update the gametype")
 		return ctrl.Result{}, fmt.Errorf("failed to update gametype with new replica count: %w", err)

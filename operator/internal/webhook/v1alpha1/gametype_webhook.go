@@ -68,15 +68,13 @@ type GameTypeCustomValidator struct {
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type GameType.
 func (v *GameTypeCustomValidator) ValidateCreate(_ context.Context, obj *gameserverv1alpha1.GameType) (admission.Warnings, error) {
 	gametypelog.Info("Validation for GameType upon creation", "name", obj.GetName())
-
-	return nil, nil
+	return nil, validateFleetScaling(obj.Spec.FleetSpec.Scaling)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type GameType.
-func (v *GameTypeCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj *gameserverv1alpha1.GameType) (admission.Warnings, error) {
+func (v *GameTypeCustomValidator) ValidateUpdate(_ context.Context, _, newObj *gameserverv1alpha1.GameType) (admission.Warnings, error) {
 	gametypelog.Info("Validation for GameType upon update", "name", newObj.GetName())
-
-	return nil, nil
+	return nil, validateFleetScaling(newObj.Spec.FleetSpec.Scaling)
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type GameType.
