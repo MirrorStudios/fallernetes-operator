@@ -135,7 +135,6 @@ func (r *GameTypeReconciler) syncGameTypeStatus(ctx context.Context, gametype *g
 		}
 	}
 
-
 	return r.Status().Update(ctx, gametype)
 }
 

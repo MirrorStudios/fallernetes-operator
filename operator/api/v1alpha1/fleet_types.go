@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // FleetSpec defines the desired state of Fleet
@@ -98,7 +99,10 @@ type FleetList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&Fleet{}, &FleetList{})
+	SchemeBuilder.Register(func(s *runtime.Scheme) error {
+		s.AddKnownTypes(SchemeGroupVersion, &Fleet{}, &FleetList{})
+		return nil
+	})
 }
 
 func AreFleetsPodsEqual(fleet1, fleet2 *FleetSpec) bool {

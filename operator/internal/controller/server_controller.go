@@ -256,7 +256,7 @@ func (r *ServerReconciler) ensurePodExists(ctx context.Context, server *gameserv
 			r.emitEventf(server, corev1.EventTypeWarning, utils.ReasonServerPodCreationFailed, "Pod creation errored: %s", err)
 			return false, err
 		}
-		r.emitEventf(server, corev1.EventTypeNormal, utils.ReasonServerPodCreated, "Pod created with sidecar image %s", server.Spec.SidecarSettings.SidecarImage)
+		r.emitEventf(server, corev1.EventTypeNormal, utils.ReasonServerPodCreated, "Pod created with sidecar image %s", *server.Spec.SidecarSettings.SidecarImage)
 		return false, nil
 	}
 	return true, nil

@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // GameTypeSpec defines the desired state of GameType
@@ -69,5 +70,8 @@ type GameTypeList struct {
 }
 
 func init() {
-	SchemeBuilder.Register(&GameType{}, &GameTypeList{})
+	SchemeBuilder.Register(func(s *runtime.Scheme) error {
+		s.AddKnownTypes(SchemeGroupVersion, &GameType{}, &GameTypeList{})
+		return nil
+	})
 }

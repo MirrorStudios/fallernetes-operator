@@ -32,7 +32,10 @@ jobs:
       - changes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Clone the code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Check if test should run
         if: needs.changes.outputs.run-tests != 'true'
@@ -40,7 +43,7 @@ jobs:
 
       - name: Setup Go
         if: needs.changes.outputs.run-tests == 'true'
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: ./operator/go.mod
 
@@ -51,11 +54,16 @@ jobs:
           path: operator/bin
           key: operator-tools-${{ runner.os }}-${{ hashFiles('operator/Makefile') }}
 
-      - name: Install kind
+      - name: Install the latest version of kind
         if: needs.changes.outputs.run-tests == 'true'
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1
-        with:
-          install_only: true
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/latest/kind-linux-$(go env GOARCH)
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Verify kind installation
+        if: needs.changes.outputs.run-tests == 'true'
+        run: kind version
 
       - name: Running Tests
         if: needs.changes.outputs.run-tests == 'true'
