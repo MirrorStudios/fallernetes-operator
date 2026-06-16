@@ -46,18 +46,6 @@ type GameTypeAutoscalerReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=gametypeautoscalers/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
-<<<<<<< HEAD
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the GameTypeAutoscaler object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.24.1/pkg/reconcile
-=======
->>>>>>> tmp-original-16-06-26-07-03
 func (r *GameTypeAutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("autoscaler", req.Name, "namespace", req.Namespace)
 

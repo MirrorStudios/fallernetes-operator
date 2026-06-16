@@ -50,18 +50,6 @@ type FleetReconciler struct {
 // +kubebuilder:rbac:groups=gameserver.falloria.com,resources=fleets/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 
-<<<<<<< HEAD
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Fleet object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.24.1/pkg/reconcile
-=======
->>>>>>> tmp-original-16-06-26-07-03
 func (r *FleetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	fleet := &gameserverv1alpha1.Fleet{}
 	if err := r.Get(ctx, req.NamespacedName, fleet); err != nil {
