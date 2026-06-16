@@ -1,13 +1,15 @@
-name: Tests
+name: Lint
 
 on:
-  push:
-  pull_request:
+  #push:
+  #pull_request:
+  workflow_dispatch:
+
 
 permissions: {}
 
 jobs:
-  test:
+  lint:
     permissions:
       contents: read
     name: Run on Ubuntu
@@ -23,7 +25,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Running Tests
-        run: |
-          go mod tidy
-          make test
+      - name: Check linter configuration
+        run: make lint-config
+      - name: Run linter
+        run: make lint
